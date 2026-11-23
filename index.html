@@ -128,7 +128,7 @@
   <p>Your games live in a private GitHub repo. Paste a fine-grained token that can read and write it. It stays in this browser only.</p>
   <ol>
     <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub → new fine-grained token</a>.</li>
-    <li>Repository access: only <code id="setupRepo"></code>. Permissions: Contents → Read and write. Set an expiry date.</li>
+    <li>Repository access: only your data repo. Permissions: Contents → Read and write. Set an expiry date.</li>
     <li>Generate it, copy it and paste it below.</li>
   </ol>
   <form id="setupForm" autocomplete="off">
@@ -629,7 +629,6 @@ var BGH = (() => {
   function showSetup(notice) {
     $("app").hidden = true;
     $("setup").hidden = false;
-    $("setupRepo").textContent = repo();
     $("setupNotice").hidden = !notice;
     $("setupNotice").textContent = notice || "";
     $("setupError").hidden = true;
