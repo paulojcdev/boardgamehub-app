@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#121420">
+<title>BoardGameHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#121420; --card:#1E2133; --line:#3A3F5C; --divider:#2A2E45;
+    --text:#F2F3F8; --muted:#A9AEC4; --accent:#7CF0C9; --on-accent:#0B2A22; --err:#FF9C9C;
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font-family:'Space Grotesk', system-ui, sans-serif; }
+  body { min-height:100vh; min-height:100dvh; -webkit-tap-highlight-color:transparent; }
+  button, select, input { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+  button:disabled { cursor:default; opacity:.45; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  [hidden] { display:none !important; }
+
+  .wrap { max-width:480px; margin:0 auto; padding:max(32px, env(safe-area-inset-top)) 16px 110px; display:flex; flex-direction:column; gap:16px; }
+  @media (min-width:400px) { .wrap { padding-left:24px; padding-right:24px; } }
+  .eyebrow { font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  h1 { margin:6px 0 0; font-size:34px; line-height:1.1; overflow-wrap:anywhere; }
+  .muted { color:var(--muted); }
+  .small { font-size:13px; }
+  .head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .head > div { min-width:0; }
+  .icon-btn { width:44px; height:44px; flex:none; border:0; border-radius:22px; background:none; color:var(--muted); font-size:20px; display:grid; place-items:center; }
+  .center { text-align:center; }
+
+  .primary { min-height:52px; border-radius:26px; border:0; background:var(--accent); color:var(--on-accent); font-size:16px; font-weight:700; padding:0 20px; }
+  .secondary { min-height:48px; border-radius:24px; border:1px solid var(--line); background:none; padding:0 18px; }
+  .linkish { border:0; background:none; color:var(--accent); padding:0 10px; min-height:44px; min-width:56px; font-weight:700; }
+  .danger { color:var(--err); }
+
+  /* Pick */
+  .stepper { display:flex; align-items:center; justify-content:space-between; padding:0 8px; }
+  .stepper button { width:56px; height:56px; border-radius:28px; border:1px solid var(--line); background:none; font-size:26px; flex:none; }
+  .dial { width:160px; height:160px; border-radius:80px; border:8px solid var(--accent); display:flex; flex-direction:column; align-items:center; justify-content:center; flex:none; }
+  .dial b { font-size:64px; line-height:1; }
+  .dial span { font-size:14px; color:var(--muted); }
+  @media (max-width:359px) { .dial { width:132px; height:132px; } .dial b { font-size:52px; } }
+  .seg { display:flex; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .seg button { flex:1; height:48px; border:0; background:none; min-width:0; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); font-weight:700; }
+
+  .card { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--card); border-radius:20px; padding:10px 18px; min-height:60px; border:2px solid transparent; }
+  .card > div { min-width:0; }
+  .card b { font-size:18px; display:block; overflow-wrap:anywhere; }
+  .card .sub { font-size:13px; color:var(--muted); }
+  .card .score { font-size:14px; font-weight:700; color:var(--accent); flex:none; }
+  .card.picked { border-color:var(--accent); }
+  .list { display:flex; flex-direction:column; gap:10px; }
+  .shelf-card { padding:0 6px 0 0; min-height:64px; }
+  .shelf-card .open { flex:1; min-width:0; text-align:left; border:0; background:none; padding:10px 0 10px 18px; min-height:64px; }
+  .empty { background:var(--card); border-radius:20px; padding:22px 18px; color:var(--muted); text-align:center; line-height:1.4; overflow-wrap:anywhere; }
+  .picked-msg { text-align:center; font-size:15px; min-height:1.2em; overflow-wrap:anywhere; }
+  .picked-msg b { color:var(--accent); }
+
+  input.field, select.field { height:48px; width:100%; border:1px solid var(--line); border-radius:14px; background:var(--card); padding:0 14px; font-size:16px; color:var(--text); min-width:0; }
+  input.search { border-radius:24px; padding:0 18px; }
+  label.lbl { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); min-width:0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .grid2 > * { min-width:0; }
+  .play-top { grid-template-columns:minmax(0,1fr) 156px; }
+  .play-top input[type=date] { padding:0 10px; }
+  .err-text { color:var(--err); font-size:14px; }
+
+  /* Plays */
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { min-height:44px; min-width:44px; max-width:100%; padding:6px 16px; border-radius:22px; border:1px solid var(--line); background:none; overflow-wrap:anywhere; text-align:center; }
+  .chip[aria-pressed="true"] { border:2px solid var(--accent); background:var(--card); color:var(--accent); font-weight:700; }
+  .chip.win[aria-pressed="true"] { border:0; background:var(--accent); color:var(--on-accent); }
+  .chip.new { border:1px dashed var(--muted); color:var(--muted); }
+  .chip.removing { border-color:var(--err); color:var(--err); }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row > input { flex:1; }
+  .play-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--divider); font-size:15px; }
+  .play-row > div { min-width:0; overflow-wrap:anywhere; }
+  .play-row .meta { color:var(--muted); font-size:13px; }
+  .section-lbl { font-size:13px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+
+  /* Nav + status */
+  nav.bottom { position:fixed; left:0; right:0; bottom:0; background:var(--bg); border-top:1px solid var(--divider); padding:6px 16px max(12px, env(safe-area-inset-bottom)); }
+  nav.bottom .in { max-width:480px; margin:0 auto; display:flex; gap:8px; justify-content:space-around; color:var(--muted); }
+  nav.bottom button { border:0; background:none; min-height:44px; padding:0 16px; color:var(--muted); font-size:16px; }
+  nav.bottom button[aria-current="page"] { color:var(--accent); font-weight:700; }
+  #status { position:fixed; left:50%; transform:translateX(-50%); bottom:80px; max-width:calc(100% - 32px); width:448px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 16px; font-size:14px; line-height:1.4; z-index:5; display:flex; gap:10px; align-items:flex-start; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  #status.err { border-color:var(--err); }
+  #status .msg { flex:1; min-width:0; overflow-wrap:anywhere; }
+  #status button { border:0; background:none; color:var(--muted); min-width:32px; min-height:32px; padding:0; }
+  .spinner { width:16px; height:16px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin .8s linear infinite; flex:none; margin-top:2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  dialog { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:20px; padding:20px; width:min(440px, calc(100% - 32px)); max-height:calc(100dvh - 32px); }
+  dialog::backdrop { background:rgba(5,6,12,.7); }
+  dialog h2 { margin:0 0 14px; font-size:22px; overflow-wrap:anywhere; }
+  dialog form { display:flex; flex-direction:column; gap:14px; }
+  dialog .actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+  dialog p { margin:0 0 16px; line-height:1.4; overflow-wrap:anywhere; }
+
+  .setup { max-width:480px; margin:0 auto; padding:56px 16px 40px; display:flex; flex-direction:column; gap:16px; }
+  @media (min-width:400px) { .setup { padding-left:24px; padding-right:24px; } }
+  .setup p, .setup ol { margin:0; line-height:1.5; color:var(--muted); }
+  .setup ol { padding-left:20px; }
+  .setup a { color:var(--accent); }
+  .notice { border:1px solid var(--err); color:var(--text); border-radius:16px; padding:12px 16px; line-height:1.4; }
+  .panel { background:var(--card); border-radius:20px; padding:18px; display:flex; flex-direction:column; gap:12px; line-height:1.4; overflow-wrap:anywhere; }
+  code { font-size:.92em; overflow-wrap:anywhere; }
+</style>
+</head>
+<body>
+
+<!-- ======================= Setup (token) ======================= -->
+<section id="setup" class="setup" hidden>
+  <div>
+    <div class="eyebrow">BoardGameHub</div>
+    <h1>Connect your data</h1>
+  </div>
+  <div id="setupNotice" class="notice" role="alert" hidden></div>
+  <p>Your games live in a private GitHub repo. Paste a fine-grained token that can read and write it. It stays in this browser only.</p>
+  <ol>
+    <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub → new fine-grained token</a>.</li>
+    <li>Repository access: only <code id="setupRepo"></code>. Permissions: Contents → Read and write. Set an expiry date.</li>
+    <li>Generate it, copy it and paste it below.</li>
+  </ol>
+  <form id="setupForm" autocomplete="off">
+    <label class="lbl">Token
+      <input id="setupToken" class="field" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="Paste your token here">
+    </label>
+    <div id="setupError" class="err-text" role="alert" hidden></div>
+    <button id="setupSubmit" class="primary" type="submit" style="width:100%;margin-top:12px">Connect</button>
+  </form>
+</section>
+
+<!-- ======================= App ======================= -->
+<div id="app" hidden>
+  <main id="screen" class="wrap"></main>
+  <nav class="bottom" aria-label="Main">
+    <div class="in">
+      <button type="button" data-nav="pick">Pick</button>
+      <button type="button" data-nav="shelf">Shelf</button>
+      <button type="button" data-nav="plays">Plays</button>
+    </div>
+  </nav>
+</div>
+
+<div id="status" role="status" aria-live="polite" hidden><span class="spinner" hidden></span><span class="msg"></span><button type="button" aria-label="Dismiss" data-action="dismiss-status">×</button></div>
+
+<dialog id="gameDialog">
+  <h2 id="gameDialogTitle">Add game</h2>
+  <form id="gameForm" method="dialog" novalidate>
+    <label class="lbl">Name <input class="field" name="name" maxlength="120" autocomplete="off"></label>
+    <div class="grid2">
+      <label class="lbl">Min players <input class="field" name="minPlayers" inputmode="numeric"></label>
+      <label class="lbl">Max players <input class="field" name="maxPlayers" inputmode="numeric"></label>
+      <label class="lbl">Play time (min) <input class="field" name="minutes" inputmode="numeric"></label>
+      <label class="lbl">Complexity (1–5) <input class="field" name="complexity" inputmode="decimal"></label>
+    </div>
+    <div class="muted small">Complexity follows the <a href="https://boardgamegeek.com/wiki/page/Weight" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">BoardGameGeek weight</a>: under 2 Light, 2–3 Medium, over 3 Heavy.</div>
+    <div id="gameFormError" class="err-text" role="alert" hidden></div>
+    <div class="actions">
+      <button type="button" class="secondary" data-action="close-dialog">Cancel</button>
+      <button type="submit" class="primary" id="gameFormSubmit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirmDialog">
+  <h2 id="confirmTitle"></h2>
+  <p id="confirmText" class="muted"></p>
+  <div class="actions">
+    <button type="button" class="secondary" data-confirm="no">Cancel</button>
+    <button type="button" class="primary" data-confirm="yes" id="confirmYes">Remove</button>
+  </div>
+</dialog>
+
+<!-- =====================================================================
+     Rules + data logic. No DOM access here: tests load this block directly
+     (see tests/). The screens below only talk to the data through BGH.
+     ===================================================================== -->
+<script id="bgh-logic">
+"use strict";
+var BGH = (() => {
+  // ---------- small helpers ----------
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const normName = (s) => String(s == null ? "" : s).trim().toLowerCase();
+  const cleanName = (s) => String(s == null ? "" : s).trim();
+
+  function randomId(prefix, taken) {
+    const set = new Set(taken || []);
+    for (;;) {
+      const bytes = new Uint8Array(6);
+      globalThis.crypto.getRandomValues(bytes);
+      const id = prefix + Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("");
+      if (!set.has(id)) return id;
+    }
+  }
+  const allIds = (data) => [...data.games, ...data.players, ...data.plays].map((x) => x.id);
+
+  // ---------- complexity + picker ----------
+  const GROUPS = ["Light", "Medium", "Heavy"];
+  /** BGG weight buckets: Light < 2, Medium 2–3, Heavy > 3. */
+  function complexityGroup(c) {
+    if (c < 2) return "Light";
+    if (c <= 3) return "Medium";
+    return "Heavy";
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  const shelfGames = (data) => data.games.filter((g) => !g.removed).slice().sort(byName);
+
+  /** Games that fit a player count and (optional) complexity group. Play time never filters. */
+  function fitGames(data, players, group) {
+    return shelfGames(data).filter((g) =>
+      g.minPlayers <= players && players <= g.maxPlayers &&
+      (!group || complexityGroup(g.complexity) === group));
+  }
+  const fitLabel = (n) => (n === 1 ? "1 game fits" : `${n} games fit`);
+  /** Tapping the selected group again clears it (no separate "Any"). */
+  const toggleGroup = (current, tapped) => (current === tapped ? null : tapped);
+  /** Picks one of the shown games, or null when there are none. */
+  function pickOne(games, rng = Math.random) {
+    if (!games || games.length === 0) return null;
+    return games[Math.min(games.length - 1, Math.floor(rng() * games.length))];
+  }
+
+  // ---------- dates ----------
+  const pad = (n) => String(n).padStart(2, "0");
+  /** Today's date in LOCAL time as YYYY-MM-DD (never toISOString, which is UTC). */
+  const localToday = (now = new Date()) => `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  function isDate(s) {
+    if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const [y, m, d] = s.split("-").map(Number);
+    const t = new Date(y, m - 1, d);
+    return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === d;
+  }
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function shortDate(s, today) {
+    const [y, m, d] = s.split("-");
+    const base = `${d} ${MONTHS[Number(m) - 1]}`;
+    return today && today.slice(0, 4) === y ? base : `${base} ${y}`;
+  }
+
+  // ---------- games ----------
+  class InputError extends Error { constructor(errors) { super(errors.join(" ")); this.name = "InputError"; this.errors = errors; } }
+  function validateGameInput(input) {
+    const errors = [];
+    const name = cleanName(input.name);
+    if (!name) errors.push("Give the game a name.");
+    const num = (v) => (typeof v === "number" ? v : String(v == null ? "" : v).trim() === "" ? NaN : Number(String(v).trim().replace(",", ".")));
+    const minP = num(input.minPlayers), maxP = num(input.maxPlayers), minutes = num(input.minutes), cx = num(input.complexity);
+    const isCount = (n) => Number.isInteger(n) && n >= 1;
+    if (!isCount(minP)) errors.push("Min players must be a whole number, 1 or more.");
+    if (!isCount(maxP)) errors.push("Max players must be a whole number, 1 or more.");
+    if (isCount(minP) && isCount(maxP) && minP > maxP) errors.push("Min players can't be more than max players.");
+    if (!isCount(minutes)) errors.push("Play time must be a whole number of minutes.");
+    if (!Number.isFinite(cx) || cx < 1 || cx > 5) errors.push("Complexity must be a number from 1 to 5.");
+    if (errors.length) return { ok: false, errors };
+    return { ok: true, errors, value: { name, minPlayers: minP, maxPlayers: maxP, minutes, complexity: Math.round(cx * 100) / 100 } };
+  }
+  function addGame(data, input, newId = randomId) {
+    const v = validateGameInput(input);
+    if (!v.ok) throw new InputError(v.errors);
+    const game = { id: newId("g", allIds(data)), ...v.value, removed: false };
+    data.games.push(game);
+    return game;
+  }
+  function editGame(data, id, input) {
+    const game = data.games.find((g) => g.id === id);
+    if (!game) throw new InputError(["That game no longer exists."]);
+    const v = validateGameInput(input);
+    if (!v.ok) throw new InputError(v.errors);
+    Object.assign(game, v.value);
+    return game;
+  }
+  function removeGame(data, id) {
+    const game = data.games.find((g) => g.id === id);
+    if (!game) throw new InputError(["That game no longer exists."]);
+    game.removed = true;
+    return game;
+  }
+
+  // ---------- players ----------
+  /** Players offered when logging a play: not removed, "You" first, then by name. */
+  function activePlayers(data) {
+    return data.players.filter((p) => !p.removed).slice().sort((a, b) => (b.isMe - a.isMe) || byName(a, b));
+  }
+  const findPlayerByName = (data, name) => data.players.find((p) => normName(p.name) === normName(name));
+  /** Adds a player, or reuses / brings back one with the same name (ignoring case + outer spaces). */
+  function addPlayer(data, name, newId = randomId) {
+    const clean = cleanName(name);
+    if (!clean) throw new InputError(["Type a name first."]);
+    const existing = findPlayerByName(data, clean);
+    if (existing && !existing.removed) return { player: existing, status: "existing" };
+    if (existing) { existing.removed = false; return { player: existing, status: "restored" }; }
+    const player = { id: newId("p", allIds(data)), name: clean, isMe: false, removed: false };
+    data.players.push(player);
+    return { player, status: "added" };
+  }
+  function removePlayer(data, id) {
+    const p = data.players.find((x) => x.id === id);
+    if (!p) throw new InputError(["That player no longer exists."]);
+    if (p.isMe) throw new InputError(["\"You\" can't be removed."]);
+    p.removed = true;
+    return p;
+  }
+  const mePlayer = (data) => data.players.find((p) => p.isMe);
+
+  // ---------- log-a-play selection ----------
+  /** Starting selection: "You" selected, no winners. */
+  function newSelection(data) {
+    const me = mePlayer(data);
+    return { playerIds: me ? [me.id] : [], winnerIds: [] };
+  }
+  /** Toggle a player; unselecting drops them from the winners too. */
+  function togglePlayer(sel, id) {
+    const on = sel.playerIds.includes(id);
+    const playerIds = on ? sel.playerIds.filter((x) => x !== id) : [...sel.playerIds, id];
+    return { playerIds, winnerIds: sel.winnerIds.filter((w) => playerIds.includes(w)) };
+  }
+  /** Winners can only be chosen among the selected players. */
+  function toggleWinner(sel, id) {
+    if (!sel.playerIds.includes(id)) return sel;
+    const on = sel.winnerIds.includes(id);
+    return { playerIds: sel.playerIds, winnerIds: on ? sel.winnerIds.filter((x) => x !== id) : [...sel.winnerIds, id] };
+  }
+  /** Drop players that are no longer offered (e.g. removed on another device). */
+  function pruneSelection(data, sel) {
+    const ok = new Set(activePlayers(data).map((p) => p.id));
+    const playerIds = sel.playerIds.filter((id) => ok.has(id));
+    return { playerIds, winnerIds: sel.winnerIds.filter((w) => playerIds.includes(w)) };
+  }
+  function playProblems(data, play) {
+    const errors = [];
+    const game = data.games.find((g) => g.id === play.gameId);
+    if (!play.gameId || !game) errors.push("Choose a game.");
+    else if (game.removed) errors.push("That game was removed from the shelf.");
+    if (!play.playerIds || play.playerIds.length === 0) errors.push("Select who played.");
+    if (!isDate(play.date)) errors.push("Choose a valid date.");
+    const known = new Set(data.players.map((p) => p.id));
+    if ((play.playerIds || []).some((id) => !known.has(id))) errors.push("A selected player no longer exists.");
+    if ((play.winnerIds || []).some((id) => !(play.playerIds || []).includes(id))) errors.push("Winners must be among the players.");
+    return errors;
+  }
+  const canSavePlay = (data, play) => playProblems(data, play).length === 0;
+  function logPlay(data, play, newId = randomId) {
+    const errors = playProblems(data, play);
+    if (errors.length) throw new InputError(errors);
+    const playerIds = [...new Set(play.playerIds)];
+    const p = { id: newId("y", allIds(data)), gameId: play.gameId, date: play.date, playerIds,
+      winnerIds: [...new Set(play.winnerIds || [])].filter((w) => playerIds.includes(w)) };
+    data.plays.push(p);
+    return p;
+  }
+  function deletePlay(data, id) {
+    const i = data.plays.findIndex((p) => p.id === id);
+    if (i < 0) throw new InputError(["That play was already deleted."]);
+    return data.plays.splice(i, 1)[0];
+  }
+
+  // ---------- reading plays ----------
+  /** Newest first by play date; same date → most recently logged first. */
+  function recentPlays(data) {
+    return data.plays.map((p, i) => ({ p, i }))
+      .sort((a, b) => (a.p.date < b.p.date ? 1 : a.p.date > b.p.date ? -1 : b.i - a.i))
+      .map((x) => x.p);
+  }
+  function joinNames(names) {
+    if (names.length <= 1) return names.join("");
+    return names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
+  }
+  function describePlay(data, play, today) {
+    const game = data.games.find((g) => g.id === play.gameId);
+    const name = (id) => (data.players.find((p) => p.id === id) || { name: "?" }).name;
+    const n = play.playerIds.length;
+    const winners = play.winnerIds.map(name);
+    return {
+      title: `${game ? game.name : "Unknown game"} · ${n} ${n === 1 ? "player" : "players"}`,
+      meta: `${shortDate(play.date, today)} · ${winners.length ? joinNames(winners) + " won" : "No winner"}`,
+    };
+  }
+  const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"} · ${g.minutes} min`;
+
+  // ---------- data.json shape ----------
+  function emptyData() {
+    return { games: [], players: [{ id: "p1", name: "You", isMe: true, removed: false }], plays: [] };
+  }
+  /** Problems with the data.json shape (empty list = OK). */
+  function validateData(d) {
+    const out = [];
+    if (!d || typeof d !== "object" || Array.isArray(d)) return ["data.json is not an object"];
+    for (const k of ["games", "players", "plays"]) if (!Array.isArray(d[k])) out.push(`"${k}" must be a list`);
+    if (out.length) return out;
+    const str = (v) => typeof v === "string" && v.length > 0;
+    const ids = new Set();
+    const seen = (id, where) => { if (ids.has(id)) out.push(`${where}: duplicate id ${id}`); ids.add(id); };
+    d.games.forEach((g, i) => {
+      const w = `game ${i + 1}`;
+      if (!str(g.id)) out.push(`${w}: missing id`); else seen(g.id, w);
+      if (!str(g.name)) out.push(`${w}: missing name`);
+      for (const k of ["minPlayers", "maxPlayers", "minutes"]) if (!Number.isInteger(g[k]) || g[k] < 1) out.push(`${w}: ${k} must be a whole number ≥ 1`);
+      if (typeof g.complexity !== "number" || !(g.complexity >= 1 && g.complexity <= 5)) out.push(`${w}: complexity must be 1–5`);
+      if (typeof g.removed !== "boolean") out.push(`${w}: removed must be true/false`);
+      if (g.minPlayers > g.maxPlayers) out.push(`${w}: minPlayers > maxPlayers`);
+    });
+    d.players.forEach((p, i) => {
+      const w = `player ${i + 1}`;
+      if (!str(p.id)) out.push(`${w}: missing id`); else seen(p.id, w);
+      if (!str(p.name)) out.push(`${w}: missing name`);
+      if (typeof p.isMe !== "boolean") out.push(`${w}: isMe must be true/false`);
+      if (typeof p.removed !== "boolean") out.push(`${w}: removed must be true/false`);
+      if (p.isMe && p.removed) out.push(`${w}: "You" can't be removed`);
+    });
+    const meCount = d.players.filter((p) => p.isMe === true).length;
+    if (meCount !== 1) out.push(`exactly one player must have isMe: true (found ${meCount})`);
+    const gameIds = new Set(d.games.map((g) => g.id));
+    const playerIds = new Set(d.players.map((p) => p.id));
+    d.plays.forEach((y, i) => {
+      const w = `play ${i + 1}`;
+      if (!str(y.id)) out.push(`${w}: missing id`); else seen(y.id, w);
+      if (!gameIds.has(y.gameId)) out.push(`${w}: unknown gameId ${y.gameId}`);
+      if (!isDate(y.date)) out.push(`${w}: date must be YYYY-MM-DD`);
+      if ("winnerId" in y) out.push(`${w}: old winnerId field`);
+      if (!Array.isArray(y.playerIds)) out.push(`${w}: playerIds must be a list`);
+      if (!Array.isArray(y.winnerIds)) out.push(`${w}: winnerIds must be a list`);
+      if (Array.isArray(y.playerIds) && Array.isArray(y.winnerIds)) {
+        for (const id of [...y.playerIds, ...y.winnerIds]) if (!playerIds.has(id)) out.push(`${w}: unknown player ${id}`);
+        for (const id of y.winnerIds) if (!y.playerIds.includes(id)) out.push(`${w}: winner ${id} is not among the players`);
+      }
+    });
+    return out;
+  }
+
+  // ---------- GitHub storage ----------
+  class StoreError extends Error {
+    /** kind: unauthorized | forbidden | rate-limit | no-repo | no-branch | no-file | network | conflict | invalid-json | bad-shape | http */
+    constructor(kind, message) { super(message); this.name = "StoreError"; this.kind = kind; }
+  }
+  function decodeB64(b64) {
+    const bin = atob(String(b64).replace(/\s/g, ""));
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  }
+  function encodeB64(text) {
+    const bytes = new TextEncoder().encode(text);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  const serialize = (data) => JSON.stringify(data, null, 2) + "\n";
+  /** Parse data.json text; refuse anything that isn't valid JSON in a usable shape. */
+  function parseDataText(text) {
+    let d;
+    try { d = JSON.parse(text); }
+    catch { throw new StoreError("invalid-json", "data.json isn't valid JSON, so the app won't touch it. Fix it on GitHub, then reload."); }
+    const usable = d && typeof d === "object" && Array.isArray(d.games) && Array.isArray(d.players) && Array.isArray(d.plays) && mePlayer(d);
+    if (!usable) {
+      const problems = validateData(d);
+      throw new StoreError("bad-shape", `data.json doesn't have the expected shape (${problems[0] || "no \"You\" player"}), so the app won't touch it. Fix it on GitHub, then reload.`);
+    }
+    return d;
+  }
+  const looksLikeToken = (t) => /^(github_pat_|ghp_|gho_|ghu_|ghs_)[A-Za-z0-9_]{20,}$/.test(String(t || ""));
+
+  /**
+   * GitHub-backed store for data.json. One change = one commit.
+   * On a 409 (file changed elsewhere) it reloads the latest data and applies the change again.
+   */
+  function createStore({ fetch: fetchFn, token, repo, branch = "master", path = "data.json", api = "https://api.github.com" }) {
+    const contentsUrl = `${api}/repos/${repo}/contents/${path}`;
+    const headers = (json) => ({
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(json ? { "Content-Type": "application/json" } : {}),
+    });
+    async function call(url, init) {
+      try { return await fetchFn(url, { cache: "no-store", ...init }); }
+      catch { throw new StoreError("network", "Can't reach GitHub (are you offline?)."); }
+    }
+    async function errorFrom(res, op) {
+      let body = {};
+      try { body = await res.json(); } catch {}
+      const msg = String((body && body.message) || "");
+      const h = (k) => (res.headers && res.headers.get(k)) || null;
+      if (res.status === 401) return new StoreError("unauthorized", "Your token expired or was revoked. Paste a new one.");
+      if ((res.status === 403 || res.status === 429) && (h("x-ratelimit-remaining") === "0" || h("retry-after") || /rate limit/i.test(msg)))
+        return new StoreError("rate-limit", "GitHub's rate limit was reached. Wait a few minutes and try again.");
+      if (res.status === 403) return new StoreError("forbidden", `GitHub refused this: the token doesn't have permission (it needs Contents read and write on ${repo}).`);
+      if (res.status === 409 || (res.status === 422 && /sha/i.test(msg))) return new StoreError("conflict", "data.json was changed elsewhere.");
+      if (res.status === 404 && op === "read") {
+        const r = await call(`${api}/repos/${repo}`, { headers: headers() });
+        if (r.status === 404) return new StoreError("no-repo", `Can't find the data: the repo ${repo} doesn't exist or this token can't see it.`);
+        const b = await call(`${api}/repos/${repo}/branches/${encodeURIComponent(branch)}`, { headers: headers() });
+        if (b.status === 404) return new StoreError("no-branch", `Can't find the data: the repo ${repo} has no "${branch}" branch.`);
+        return new StoreError("no-file", `Can't find the data: there's no ${path} in ${repo} (branch ${branch}).`);
+      }
+      if (res.status === 404) return new StoreError("no-repo", `Can't find the data: ${repo} isn't visible to this token.`);
+      return new StoreError("http", `GitHub answered ${res.status}${msg ? ": " + msg : ""}.`);
+    }
+
+    const store = {
+      repo, branch, path, data: null, sha: null,
+      async load() {
+        const res = await call(`${contentsUrl}?ref=${encodeURIComponent(branch)}`, { headers: headers() });
+        if (!res.ok) throw await errorFrom(res, "read");
+        const file = await res.json();
+        const data = parseDataText(decodeB64(file.content || ""));
+        store.data = data; store.sha = file.sha;
+        return data;
+      },
+      async put(message, data, sha) {
+        const body = { message, content: encodeB64(serialize(data)), branch };
+        if (sha) body.sha = sha;
+        const res = await call(contentsUrl, { method: "PUT", headers: headers(true), body: JSON.stringify(body) });
+        if (!res.ok) throw await errorFrom(res, "write");
+        const out = await res.json();
+        return out.content.sha;
+      },
+      /** Create an empty data.json (only offered when the file is missing). */
+      async createEmpty() {
+        const data = emptyData();
+        store.sha = await store.put("Create data.json", data, null);
+        store.data = data;
+        return data;
+      },
+      /**
+       * Apply op(draft) to a copy and commit it with `message` (string, or fn(result) → string).
+       * Resolves { result, changed, merged }. Nothing changes locally unless GitHub accepted it.
+       */
+      async change(message, op, { retries = 2 } = {}) {
+        if (!store.data) throw new StoreError("http", "Data isn't loaded yet.");
+        let merged = false;
+        for (let attempt = 0; ; attempt++) {
+          const draft = clone(store.data);
+          const result = op(draft); // InputError propagates: nothing written
+          if (serialize(draft) === serialize(store.data)) return { result, changed: false, merged };
+          const before = new Set(validateData(store.data));
+          const fresh = validateData(draft).filter((p) => !before.has(p));
+          if (fresh.length) throw new InputError([`Refusing to save data in the wrong shape: ${fresh[0]}`]);
+          const msg = typeof message === "function" ? message(result) : message;
+          try {
+            const sha = await store.put(msg, draft, store.sha);
+            store.data = draft; store.sha = sha;
+            return { result, changed: true, merged };
+          } catch (e) {
+            if (e.kind === "conflict" && attempt < retries) { await store.load(); merged = true; continue; }
+            throw e;
+          }
+        }
+      },
+    };
+    return store;
+  }
+
+  return {
+    GROUPS, complexityGroup, fitGames, fitLabel, toggleGroup, pickOne, shelfGames,
+    localToday, isDate, shortDate,
+    validateGameInput, addGame, editGame, removeGame, InputError,
+    activePlayers, findPlayerByName, addPlayer, removePlayer, mePlayer, normName,
+    newSelection, togglePlayer, toggleWinner, pruneSelection, playProblems, canSavePlay, logPlay, deletePlay,
+    recentPlays, describePlay, gameSummary, joinNames,
+    emptyData, validateData, parseDataText, serialize, looksLikeToken,
+    StoreError, createStore, encodeB64, decodeB64, randomId, clone,
+  };
+})();
+</script>
+
+<!-- ======================= Screens ======================= -->
+<script>
+"use strict";
+(() => {
+  const TOKEN_KEY = "bgh.token";
+  const REPO_KEY = "bgh.repo";          // optional override, used to point a browser at the test data repo
+  const DEFAULT_REPO = "paulojcdev/boardgamehub";
+  const BRANCH = "master";
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ls = {
+    get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+    set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} },
+  };
+  const repo = () => (/^[\w.-]+\/[\w.-]+$/.test(ls.get(REPO_KEY)) ? ls.get(REPO_KEY) : DEFAULT_REPO);
+  const newStore = (token) => BGH.createStore({ fetch: window.fetch.bind(window), token, repo: repo(), branch: BRANCH });
+
+  // ---------- state ----------
+  let store = null;
+  let busy = false;
+  const ui = {
+    screen: "pick",
+    prevScreen: "pick",     // where closing Settings goes back to
+    pick: { players: 4, group: null, pickedId: null },
+    shelf: { query: "" },
+    plays: { gameId: "", date: BGH.localToday(), sel: null, adding: false, newName: "", editingPlayers: false },
+    loadError: null,
+  };
+  const data = () => store && store.data;
+
+  // ---------- status + busy ----------
+  let statusTimer = null;
+  function setStatus(msg, kind = "", { spin = false, sticky = false } = {}) {
+    const el = $("status");
+    clearTimeout(statusTimer);
+    if (!msg) { el.hidden = true; return; }
+    el.hidden = false;
+    el.className = kind;
+    el.querySelector(".msg").textContent = msg;
+    el.querySelector(".spinner").hidden = !spin;
+    el.querySelector("button").hidden = spin;
+    if (!spin && !sticky && kind !== "err") statusTimer = setTimeout(() => (el.hidden = true), 3500);
+  }
+  function setBusy(on) {
+    busy = on;
+    document.body.toggleAttribute("aria-busy", on);
+    document.querySelectorAll("#screen button, #screen input, #screen select, dialog button, dialog input, #setup button, #setup input").forEach((el) => {
+      if (on) { if (!el.disabled) { el.disabled = true; el.dataset.busyDisabled = "1"; } }
+      else if (el.dataset.busyDisabled) { el.disabled = false; delete el.dataset.busyDisabled; }
+    });
+  }
+
+  // ---------- setup screen ----------
+  function showSetup(notice) {
+    $("app").hidden = true;
+    $("setup").hidden = false;
+    $("setupRepo").textContent = repo();
+    $("setupNotice").hidden = !notice;
+    $("setupNotice").textContent = notice || "";
+    $("setupError").hidden = true;
+    $("setupToken").value = "";
+    setStatus("");
+  }
+  function showApp() {
+    $("setup").hidden = true;
+    $("app").hidden = false;
+    render();
+  }
+  $("setupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const token = $("setupToken").value.trim();
+    const fail = (msg) => { $("setupError").textContent = msg; $("setupError").hidden = false; };
+    $("setupError").hidden = true;
+    if (!token) return fail("Paste your token first.");
+    if (!BGH.looksLikeToken(token)) return fail("That doesn't look like a GitHub token (fine-grained tokens start with github_pat_). Copy the whole token and try again. It wasn't saved.");
+    const candidate = newStore(token);
+    setBusy(true);
+    $("setupSubmit").textContent = "Checking…";
+    let outcome = null;
+    try {
+      await candidate.load();
+      outcome = { ok: true };
+    } catch (err) {
+      if (err.kind === "no-file" || err.kind === "invalid-json" || err.kind === "bad-shape") outcome = { ok: true, err };
+      else if (err.kind === "unauthorized") fail("GitHub rejected this token (wrong, expired or revoked). It wasn't saved.");
+      else fail(err.message + " The token wasn't saved.");
+    } finally {
+      $("setupSubmit").textContent = "Connect";
+      setBusy(false);
+    }
+    if (outcome) connect(candidate, token, outcome.err || null);
+  });
+  function connect(s, token, loadError) {
+    ls.set(TOKEN_KEY, token);
+    store = s;
+    ui.loadError = loadError;
+    if (!ui.plays.sel) resetPlayForm();
+    if (ui.screen === "settings") ui.screen = "pick";
+    showApp();
+    afterDataChange();
+  }
+
+  // ---------- helpers ----------
+  function resetPlayForm() {
+    const d = data();
+    ui.plays.sel = d ? BGH.newSelection(d) : null;
+    ui.plays.gameId = "";
+    ui.plays.date = BGH.localToday();
+    ui.plays.adding = false;
+    ui.plays.newName = "";
+  }
+  /** Run one store change = one commit, with feedback and error handling. Resolves null on failure. */
+  async function change(label, message, op) {
+    if (busy || !store) return null;
+    setBusy(true);
+    setStatus(label + "…", "", { spin: true });
+    try {
+      const out = await store.change(message, op);
+      if (out.merged) setStatus("Data had changed on another device: loaded the latest and applied your change on top.", "", { sticky: true });
+      else setStatus(out.changed ? "Saved." : "Nothing to change.");
+      return out;
+    } catch (err) {
+      handleError(err, true);
+      return null;
+    } finally {
+      setBusy(false);
+      afterDataChange();
+    }
+  }
+  function handleError(err, writing) {
+    if (err instanceof BGH.InputError) { setStatus(err.message, "err"); return; }
+    if (err.kind === "unauthorized") {
+      ls.set(TOKEN_KEY, "");
+      showSetup("Your token expired or was revoked. Paste a new one to continue." + (writing ? " Your last change wasn't saved; it's still there to retry." : ""));
+      return;
+    }
+    if (err.kind === "conflict") { setStatus("data.json kept changing on another device, so your change wasn't saved. Try again.", "err"); return; }
+    setStatus(err.message + (writing ? " Your change wasn't saved; it's still on screen so you can try again." : ""), "err");
+  }
+  function afterDataChange() {
+    const d = data();
+    if (d && !ui.plays.sel) resetPlayForm();
+    if (d && ui.plays.sel) ui.plays.sel = BGH.pruneSelection(d, ui.plays.sel);
+    if (d && ui.plays.gameId && !d.games.some((g) => g.id === ui.plays.gameId && !g.removed)) ui.plays.gameId = "";
+    if (!$("app").hidden) render();
+  }
+  async function reload() {
+    if (busy || !store) return;
+    setBusy(true);
+    setStatus("Loading…", "", { spin: true });
+    try {
+      await store.load();
+      ui.loadError = null;
+      setStatus("");
+    } catch (err) {
+      if (err.kind !== "network" && err.kind !== "rate-limit") store.data = null; // never keep or write over broken data
+      if (!store.data) ui.loadError = err;
+      handleError(err, false);
+    } finally {
+      setBusy(false);
+      afterDataChange();
+    }
+  }
+  let confirmResolve = null;
+  function confirmBox(title, text, yes = "Remove") {
+    $("confirmTitle").textContent = title;
+    $("confirmText").textContent = text;
+    $("confirmYes").textContent = yes;
+    $("confirmDialog").showModal();
+    return new Promise((r) => (confirmResolve = r));
+  }
+  $("confirmDialog").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-confirm]");
+    if (!b) return;
+    $("confirmDialog").close();
+    if (confirmResolve) { confirmResolve(b.dataset.confirm === "yes"); confirmResolve = null; }
+  });
+  $("confirmDialog").addEventListener("cancel", () => { if (confirmResolve) { confirmResolve(false); confirmResolve = null; } });
+
+  // ---------- rendering ----------
+  function render() {
+    document.querySelectorAll("[data-nav]").forEach((b) => (b.dataset.nav === ui.screen ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
+    const el = $("screen");
+    if (ui.screen === "settings") el.innerHTML = renderSettings();
+    else if (!data()) el.innerHTML = renderLoadProblem();
+    else el.innerHTML = ui.screen === "shelf" ? renderShelf() : ui.screen === "plays" ? renderPlays() : renderPick();
+    if (busy) setBusy(true);
+  }
+  const settingsBtn = `<button type="button" class="icon-btn" data-action="settings" aria-label="Settings" title="Settings">⚙</button>`;
+  const closeBtn = `<button type="button" class="icon-btn" data-action="close-settings" aria-label="Close settings" title="Close">×</button>`;
+  const header = (eyebrow, title, btn = settingsBtn) => `<div class="head"><div><div class="eyebrow">${esc(eyebrow)}</div>${title ? `<h1>${esc(title)}</h1>` : ""}</div>${btn}</div>`;
+
+  function renderLoadProblem() {
+    const err = ui.loadError;
+    if (!err) return `${header("BoardGameHub", "Loading…")}<div class="panel" aria-busy="true"><span class="spinner"></span></div>`;
+    const create = err.kind === "no-file" ? `<button type="button" class="primary" data-action="create-data">Create an empty data.json</button>` : "";
+    return `${header("BoardGameHub", "Can't show your games")}
+      <div class="panel" role="alert" id="loadProblem"><div>${esc(err.message)}</div>${create}
+      <button type="button" class="secondary" data-action="reload">Try again</button></div>`;
+  }
+
+  function renderPick() {
+    const d = data(), s = ui.pick;
+    const games = BGH.fitGames(d, s.players, s.group);
+    if (s.pickedId && !games.some((g) => g.id === s.pickedId)) s.pickedId = null;
+    const picked = games.find((g) => g.id === s.pickedId);
+    const cards = games.map((g) => `
+      <div class="card${g.id === s.pickedId ? " picked" : ""}" data-game="${esc(g.id)}">
+        <div><b>${esc(g.name)}</b><div class="sub">${esc(BGH.gameSummary(g))}</div></div>
+        <span class="score" title="${esc(BGH.complexityGroup(g.complexity))}">${esc(g.complexity.toFixed(1))}</span>
+      </div>`).join("");
+    const empty = BGH.shelfGames(d).length === 0
+      ? `<div class="empty">Your shelf is empty. Add games on the <b>Shelf</b> tab.</div>`
+      : `<div class="empty">No game fits ${s.players} ${s.players === 1 ? "player" : "players"}${s.group ? " at " + s.group : ""}. Try another number${s.group ? ", or tap " + s.group + " again to clear it" : ""}.</div>`;
+    return `
+      <div class="head"><div style="width:44px"></div><div class="eyebrow center" style="padding-top:14px">Tonight</div>${settingsBtn}</div>
+      <div class="stepper">
+        <button type="button" aria-label="Fewer players" data-action="players-dec" ${s.players <= 1 ? "disabled" : ""}>−</button>
+        <div class="dial"><b id="playerCount">${s.players}</b><span>${s.players === 1 ? "player" : "players"}</span></div>
+        <button type="button" aria-label="More players" data-action="players-inc" ${s.players >= 20 ? "disabled" : ""}>+</button>
+      </div>
+      <div class="seg" role="group" aria-label="Complexity">
+        ${BGH.GROUPS.map((g) => `<button type="button" data-action="group" data-group="${g}" aria-pressed="${s.group === g}">${g}</button>`).join("")}
+      </div>
+      <div class="eyebrow" id="fitCount" style="margin-top:4px" aria-live="polite">${BGH.fitLabel(games.length)}</div>
+      <div class="list" id="fitList">${games.length ? cards : empty}</div>
+      <div class="picked-msg" id="pickedMsg" aria-live="polite">${picked ? `Tonight: <b>${esc(picked.name)}</b>` : ""}</div>
+      <button type="button" class="primary" data-action="pick-one" ${games.length ? "" : "disabled"}>${picked && games.length > 1 ? "Pick another" : "Pick one for me"}</button>`;
+  }
+
+  function renderShelf() {
+    const d = data();
+    const all = BGH.shelfGames(d);
+    const q = BGH.normName(ui.shelf.query);
+    const games = q ? all.filter((g) => BGH.normName(g.name).includes(q)) : all;
+    const rows = games.map((g) => `
+      <div class="card shelf-card" data-game="${esc(g.id)}">
+        <button type="button" class="open" data-action="edit-game" data-id="${esc(g.id)}" aria-label="Edit ${esc(g.name)}">
+          <b>${esc(g.name)}</b><div class="sub">${esc(BGH.gameSummary(g))} · ${BGH.complexityGroup(g.complexity)} ${esc(g.complexity.toFixed(1))}</div>
+        </button>
+        <button type="button" class="icon-btn" data-action="remove-game" data-id="${esc(g.id)}" aria-label="Remove ${esc(g.name)}">×</button>
+      </div>`).join("");
+    const empty = all.length === 0
+      ? `<div class="empty">No games on your shelf yet.<br>Add the first one below.</div>`
+      : `<div class="empty">No game matches “${esc(ui.shelf.query.trim())}”.</div>`;
+    return `
+      ${header("Your collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
+      ${all.length ? `<input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off">` : ""}
+      <div class="list" id="shelfList">${games.length ? rows : empty}</div>
+      <button type="button" class="primary" data-action="add-game">+ Add game</button>`;
+  }
+
+  function renderPlays() {
+    const d = data(), s = ui.plays;
+    if (!s.sel) s.sel = BGH.newSelection(d);
+    const games = BGH.shelfGames(d);
+    const players = BGH.activePlayers(d);
+    const sel = s.sel;
+    const today = BGH.localToday();
+    const gameOpts = `<option value="">Choose a game…</option>` +
+      games.map((g) => `<option value="${esc(g.id)}" ${g.id === s.gameId ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+    const playerChips = players.map((p) => {
+      if (s.editingPlayers) {
+        return p.isMe
+          ? `<button type="button" class="chip" disabled title="“You” can't be removed">${esc(p.name)}</button>`
+          : `<button type="button" class="chip removing" data-action="remove-player" data-id="${esc(p.id)}" aria-label="Remove player ${esc(p.name)}">${esc(p.name)} ×</button>`;
+      }
+      return `<button type="button" class="chip" data-action="toggle-player" data-id="${esc(p.id)}" aria-pressed="${sel.playerIds.includes(p.id)}">${esc(p.name)}</button>`;
+    }).join("");
+    const newPlayer = s.editingPlayers ? "" : s.adding
+      ? `<form class="row" data-form="new-player" style="width:100%"><input class="field" id="newPlayerName" aria-label="New player name" placeholder="Name" maxlength="60" autocomplete="off" value="${esc(s.newName)}"><button type="submit" class="secondary">Add</button><button type="button" class="icon-btn" data-action="cancel-new-player" aria-label="Cancel new player">×</button></form>`
+      : `<button type="button" class="chip new" data-action="new-player">+ New player</button>`;
+    const selectedPlayers = sel.playerIds.map((id) => d.players.find((p) => p.id === id)).filter(Boolean);
+    const winnerChips = selectedPlayers.map((p) =>
+      `<button type="button" class="chip win" data-action="toggle-winner" data-id="${esc(p.id)}" aria-pressed="${sel.winnerIds.includes(p.id)}">${esc(p.name)}</button>`).join("");
+    const play = { gameId: s.gameId, date: s.date, playerIds: sel.playerIds, winnerIds: sel.winnerIds };
+    const problems = BGH.playProblems(d, play);
+    const rows = BGH.recentPlays(d).map((p) => {
+      const t = BGH.describePlay(d, p, today);
+      return `<div class="play-row" data-play="${esc(p.id)}"><div><div>${esc(t.title)}</div><div class="meta">${esc(t.meta)}</div></div>
+        <button type="button" class="icon-btn" data-action="delete-play" data-id="${esc(p.id)}" aria-label="Delete play: ${esc(t.title)}, ${esc(t.meta)}">×</button></div>`;
+    }).join("");
+    return `
+      ${header("Plays", "Log a play")}
+      <div class="grid2 play-top">
+        <label class="lbl">Game<select class="field" id="playGame">${gameOpts}</select></label>
+        <label class="lbl">Date<input class="field" id="playDate" type="date" value="${esc(s.date)}" max="9999-12-31"></label>
+      </div>
+      ${games.length ? "" : `<div class="muted small">No games on the shelf yet. Add one on the Shelf tab.</div>`}
+      <div>
+        <div class="section-lbl"><span id="whoPlayed">${s.editingPlayers ? "Tap a player to remove them" : `Who played · ${sel.playerIds.length} selected`}</span>
+          <button type="button" class="linkish" data-action="edit-players">${s.editingPlayers ? "Done" : "Edit"}</button></div>
+        <div class="chips" id="playerChips">${playerChips}${newPlayer}</div>
+      </div>
+      ${s.editingPlayers ? "" : `<div>
+        <div class="section-lbl"><span>Winners <span class="muted">(optional)</span></span></div>
+        <div class="chips" id="winnerChips">${winnerChips || `<span class="muted small">Select who played first.</span>`}</div>
+      </div>
+      <button type="button" class="primary" data-action="save-play" ${problems.length ? "disabled" : ""} title="${esc(problems.join(" "))}">Save play</button>`}
+      <div>
+        <div class="section-lbl" style="margin-top:8px"><span>Recent plays</span></div>
+        <div id="recentPlays">${rows || `<div class="empty">No plays yet. Log your first game night above.</div>`}</div>
+      </div>`;
+  }
+
+  function renderSettings() {
+    return `
+      ${header("Settings", "Settings", closeBtn)}
+      <div class="panel">
+        <button type="button" class="secondary" data-action="reload">Reload data</button>
+      </div>
+      <form class="panel" data-form="replace-token" autocomplete="off">
+        <label class="lbl">Replace token
+          <input class="field" id="newToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the new token">
+        </label>
+        <div id="replaceError" class="err-text" role="alert" hidden></div>
+        <button type="submit" class="primary">Save new token</button>
+      </form>
+      <div class="panel">
+        <div class="muted small">Forget the token on this device. You'll need to paste it again to use the app here.</div>
+        <button type="button" class="secondary danger" data-action="forget-token">Forget token</button>
+      </div>`;
+  }
+
+  // ---------- game dialog ----------
+  let editingGameId = null;
+  function openGameDialog(game) {
+    editingGameId = game ? game.id : null;
+    $("gameDialogTitle").textContent = game ? "Edit game" : "Add game";
+    const f = $("gameForm");
+    f.name.value = game ? game.name : "";
+    f.minPlayers.value = game ? game.minPlayers : "";
+    f.maxPlayers.value = game ? game.maxPlayers : "";
+    f.minutes.value = game ? game.minutes : "";
+    f.complexity.value = game ? game.complexity : "";
+    $("gameFormError").hidden = true;
+    $("gameDialog").showModal();
+  }
+  $("gameForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const f = $("gameForm");
+    const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minutes: f.minutes.value, complexity: f.complexity.value };
+    const v = BGH.validateGameInput(input);
+    if (!v.ok) { $("gameFormError").textContent = v.errors.join(" "); $("gameFormError").hidden = false; return; }
+    $("gameFormError").hidden = true;
+    const id = editingGameId;
+    const out = id
+      ? await change("Saving", (g) => `Edit game: ${g.name}`, (draft) => BGH.editGame(draft, id, input))
+      : await change("Saving", (g) => `Add game: ${g.name}`, (draft) => BGH.addGame(draft, input));
+    if (out && $("gameDialog").open) $("gameDialog").close();
+  });
+  $("gameDialog").addEventListener("click", (e) => { if (e.target.closest("[data-action=close-dialog]") && !busy) $("gameDialog").close(); });
+  $("gameDialog").addEventListener("cancel", (e) => { if (busy) e.preventDefault(); });
+
+  // ---------- events ----------
+  document.querySelector("nav.bottom").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-nav]");
+    if (!b) return;
+    ui.screen = b.dataset.nav;
+    render();
+    window.scrollTo(0, 0);
+  });
+  function closeSettings() {
+    ui.screen = ui.prevScreen && ui.prevScreen !== "settings" ? ui.prevScreen : "pick";
+    render();
+    window.scrollTo(0, 0);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.screen === "settings" && !busy && !$("app").hidden && !document.querySelector("dialog[open]")) closeSettings();
+  });
+  $("status").addEventListener("click", (e) => { if (e.target.closest("[data-action=dismiss-status]")) setStatus(""); });
+
+  $("screen").addEventListener("input", (e) => {
+    if (e.target.id === "shelfSearch") {
+      ui.shelf.query = e.target.value;
+      const pos = e.target.selectionStart;
+      render();
+      const s = $("shelfSearch"); if (s) { s.focus(); s.setSelectionRange(pos, pos); }
+    }
+    if (e.target.id === "newPlayerName") ui.plays.newName = e.target.value;
+  });
+  $("screen").addEventListener("change", (e) => {
+    if (e.target.id === "playGame") { ui.plays.gameId = e.target.value; render(); }
+    if (e.target.id === "playDate") { ui.plays.date = e.target.value; render(); }
+  });
+
+  $("screen").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const form = e.target.dataset.form;
+    if (form === "new-player") {
+      const name = ui.plays.newName;
+      if (!name.trim()) { setStatus("Type a name first.", "err"); return; }
+      const existing = BGH.findPlayerByName(data(), name);
+      const msg = (r) => (r.status === "restored" ? `Bring back player: ${r.player.name}` : `Add player: ${r.player.name}`);
+      const out = existing && !existing.removed
+        ? { result: { player: existing, status: "existing" } }
+        : await change("Saving", msg, (draft) => BGH.addPlayer(draft, name));
+      if (out) {
+        const id = out.result.player.id;
+        if (!ui.plays.sel.playerIds.includes(id)) ui.plays.sel = BGH.togglePlayer(ui.plays.sel, id);
+        ui.plays.adding = false; ui.plays.newName = "";
+        if (out.result.status === "existing") setStatus(`${out.result.player.name} is already on the list, so they're selected.`);
+        if (out.result.status === "restored") setStatus(`${out.result.player.name} is back. Their past plays are still linked.`);
+        render();
+      }
+    }
+    if (form === "replace-token") {
+      const token = $("newToken").value.trim();
+      const err = (m) => { $("replaceError").textContent = m; $("replaceError").hidden = false; };
+      if (!BGH.looksLikeToken(token)) return err("That doesn't look like a GitHub token (fine-grained tokens start with github_pat_). Nothing changed.");
+      const candidate = newStore(token);
+      setBusy(true);
+      setStatus("Checking the new token…", "", { spin: true });
+      let ok = false;
+      try { await candidate.load(); ok = true; }
+      catch (x) {
+        setStatus("");
+        if (x.kind === "unauthorized") err("GitHub rejected this token. The old one is still in use.");
+        else err(x.message + " The old token is still in use.");
+      } finally { setBusy(false); }
+      if (ok) {
+        ls.set(TOKEN_KEY, token);
+        store = candidate; ui.loadError = null;
+        afterDataChange();
+        setStatus("New token saved.");
+      }
+    }
+  });
+
+  $("screen").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-action]");
+    if (!b || busy || b.disabled) return;
+    const a = b.dataset.action, id = b.dataset.id, d = data();
+    const s = ui.pick, p = ui.plays;
+    switch (a) {
+      case "settings": ui.prevScreen = ui.screen; ui.screen = "settings"; render(); window.scrollTo(0, 0); break;
+      case "close-settings": closeSettings(); break;
+      case "players-dec": s.players = Math.max(1, s.players - 1); s.pickedId = null; render(); break;
+      case "players-inc": s.players = Math.min(20, s.players + 1); s.pickedId = null; render(); break;
+      case "group": s.group = BGH.toggleGroup(s.group, b.dataset.group); s.pickedId = null; render(); break;
+      case "pick-one": {
+        const shown = BGH.fitGames(d, s.players, s.group);
+        const others = shown.length > 1 ? shown.filter((g) => g.id !== s.pickedId) : shown;
+        const g = BGH.pickOne(others);
+        s.pickedId = g ? g.id : null;
+        render();
+        break;
+      }
+      case "add-game": openGameDialog(null); break;
+      case "edit-game": openGameDialog(d.games.find((g) => g.id === id)); break;
+      case "remove-game": {
+        const g = d.games.find((x) => x.id === id);
+        if (await confirmBox(`Remove ${g.name}?`, "It leaves the Shelf and the picker. Past plays keep its name.")) {
+          await change("Removing", `Remove game: ${g.name}`, (draft) => BGH.removeGame(draft, id));
+        }
+        break;
+      }
+      case "toggle-player": p.sel = BGH.togglePlayer(p.sel, id); render(); break;
+      case "toggle-winner": p.sel = BGH.toggleWinner(p.sel, id); render(); break;
+      case "new-player": p.adding = true; render(); $("newPlayerName").focus(); break;
+      case "cancel-new-player": p.adding = false; p.newName = ""; render(); break;
+      case "edit-players": p.editingPlayers = !p.editingPlayers; p.adding = false; render(); break;
+      case "remove-player": {
+        const pl = d.players.find((x) => x.id === id);
+        if (await confirmBox(`Remove ${pl.name}?`, "They won't be offered when logging a play. Past plays still show them. Adding the same name later brings them back.")) {
+          await change("Removing", `Remove player: ${pl.name}`, (draft) => BGH.removePlayer(draft, id));
+        }
+        break;
+      }
+      case "save-play": {
+        const play = { gameId: p.gameId, date: p.date, playerIds: p.sel.playerIds, winnerIds: p.sel.winnerIds };
+        const g = d.games.find((x) => x.id === play.gameId);
+        const out = await change("Saving", `Log play: ${g ? g.name : "?"} on ${play.date}`, (draft) => BGH.logPlay(draft, play));
+        if (out) { resetPlayForm(); render(); }
+        break;
+      }
+      case "delete-play": {
+        const play = d.plays.find((x) => x.id === id);
+        const g = d.games.find((x) => x.id === play.gameId);
+        const t = BGH.describePlay(d, play, BGH.localToday());
+        if (await confirmBox("Delete this play?", `${t.title}, ${t.meta}. This can't be undone.`, "Delete")) {
+          await change("Deleting", `Delete play: ${g ? g.name : "?"} on ${play.date}`, (draft) => BGH.deletePlay(draft, id));
+        }
+        break;
+      }
+      case "reload": await reload(); break;
+      case "create-data": {
+        setBusy(true);
+        setStatus("Creating data.json…", "", { spin: true });
+        try { await store.createEmpty(); ui.loadError = null; resetPlayForm(); setStatus("Created an empty data.json."); }
+        catch (err) { handleError(err, true); }
+        finally { setBusy(false); afterDataChange(); }
+        break;
+      }
+      case "forget-token":
+        if (await confirmBox("Forget the token?", "It will be removed from this browser. You'll need to paste it again.", "Forget")) {
+          ls.set(TOKEN_KEY, ""); store = null; ui.loadError = null; ui.screen = "pick"; ui.plays.sel = null;
+          showSetup("");
+        }
+        break;
+    }
+  });
+
+  // ---------- start ----------
+  const token = ls.get(TOKEN_KEY);
+  if (!token) showSetup("");
+  else { store = newStore(token); showApp(); reload(); }
+})();
+</script>
+</body>
+</html>
