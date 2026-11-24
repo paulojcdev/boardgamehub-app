@@ -30,8 +30,14 @@
   h1 { margin:6px 0 0; font-size:34px; line-height:1.1; overflow-wrap:anywhere; }
   .muted { color:var(--muted); }
   .small { font-size:13px; }
-  .head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-  .head > div { min-width:0; }
+  /* Header: small label + settings button on the first line (button centred on the label), title + extras (Shelf sort) on the second. */
+  .head { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:12px; align-items:center; }
+  .head > .eyebrow { grid-column:1; grid-row:1; }
+  .head > .icon-btn { grid-column:2; grid-row:1; justify-self:end; margin:-14px -11px -14px 0; }
+  .head > h1 { grid-column:1; grid-row:2; }
+  .head > .head-extra { grid-column:2; grid-row:2; justify-self:end; align-self:end; }
+  .sort-lbl { display:inline-flex; align-items:center; gap:5px; min-height:44px; min-width:44px; justify-content:flex-end; margin:0 0 -11px; padding:0 0 0 8px; border:0; background:none; color:var(--muted); font-size:13px; white-space:nowrap; }
+  .sort-lbl svg { width:13px; height:13px; color:var(--accent); flex:none; }
   .icon-btn { width:44px; height:44px; flex:none; border:0; border-radius:22px; background:none; color:var(--muted); font-size:20px; display:grid; place-items:center; }
   .center { text-align:center; }
 
@@ -74,8 +80,10 @@
   .search-box input.search { padding-right:46px; }
   .sort-btn { position:absolute; right:2px; top:2px; width:44px; height:44px; border:0; border-radius:22px; background:none; color:var(--accent); display:grid; place-items:center; padding:0; }
   .sort-btn svg { width:16px; height:16px; }
-  dialog.sheet { margin:auto auto 0; width:min(480px, 100%); max-width:100%; border-radius:20px 20px 0 0; border-bottom:0; padding:16px 16px max(20px, env(safe-area-inset-bottom)); }
-  dialog.sheet h2 { font-size:13px; font-weight:400; margin:0 0 6px; }
+  /* Sort menu: opens right below the sort icon, lined up with the search box's right edge (top/right set when opened). */
+  dialog.sheet { position:fixed; inset:auto; margin:0; width:min(340px, calc(100% - 32px)); max-height:calc(100dvh - var(--menu-top, 0px) - 12px); overflow-y:auto; border-radius:16px; padding:12px 14px 4px; box-shadow:0 12px 32px rgba(0,0,0,.55); }
+  dialog.sheet::backdrop { background:rgba(5,6,12,.35); }
+  dialog.sheet h2 { font-size:13px; font-weight:400; margin:0 0 4px; }
   .sort-row { display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:56px; border-top:1px solid var(--divider); }
   .sort-row.on > span { color:var(--accent); font-weight:700; }
   .sort-row .pair { display:flex; gap:8px; flex:none; }
@@ -945,7 +953,8 @@ var BGH = (() => {
   }
   const settingsBtn = `<button type="button" class="icon-btn" data-action="settings" aria-label="Settings" title="Settings">⚙</button>`;
   const closeBtn = `<button type="button" class="icon-btn" data-action="close-settings" aria-label="Close settings" title="Close">×</button>`;
-  const header = (eyebrow, title, btn = settingsBtn) => `<div class="head"><div><div class="eyebrow">${esc(eyebrow)}</div>${title ? `<h1>${esc(title)}</h1>` : ""}</div>${btn}</div>`;
+  /** `extra`: HTML shown right-aligned on the title's line, under the button. */
+  const header = (eyebrow, title, btn = settingsBtn, extra = "") => `<div class="head"><div class="eyebrow">${esc(eyebrow)}</div>${btn}${title ? `<h1>${esc(title)}</h1>` : ""}${extra ? `<div class="head-extra">${extra}</div>` : ""}</div>`;
 
   function renderLoadProblem() {
     const err = ui.loadError;
@@ -990,6 +999,12 @@ var BGH = (() => {
 
   const shelfSortNow = () => ui.shelf.sort || BGH.shelfSort(data());
   const SORT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/></svg>`;
+  // Sort label under the settings button: the field, then ↑ (ascending) / ↓ (descending), or ⠿ for My order.
+  const SORT_FIELD = { name: "Name", players: "Players", time: "Time", complexity: "Complexity", custom: "My order" };
+  const icon = (body, fill = false) => `<svg viewBox="0 0 24 24" ${fill ? `fill="currentColor"` : `fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"`} aria-hidden="true">${body}</svg>`;
+  const UP_ICON = icon(`<path d="M12 20V4M6 10l6-6 6 6"/>`);
+  const DOWN_ICON = icon(`<path d="M12 4v16M6 14l6 6 6-6"/>`);
+  const GRIP_ICON = icon([6, 12, 18].map((y) => `<circle cx="9" cy="${y}" r="1.8"/><circle cx="15" cy="${y}" r="1.8"/>`).join(""), true);
   function renderShelf() {
     const d = data();
     const sort = shelfSortNow(), custom = sort === "custom";
@@ -1010,7 +1025,9 @@ var BGH = (() => {
       ? `<div class="empty">No games on your shelf yet.<br>Add the first one below.</div>`
       : `<div class="empty">No game matches “${esc(ui.shelf.query.trim())}”.</div>`;
     return `
-      ${header("Collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
+      ${header("Collection", `${all.length} ${all.length === 1 ? "game" : "games"}`, settingsBtn, all.length
+        ? `<button type="button" class="sort-lbl" id="sortLabel" data-action="open-sort" aria-label="Sort: ${esc(sortLabel)}" title="Sort: ${esc(sortLabel)}">${SORT_FIELD[sort.split("-")[0]]}${sort === "custom" ? GRIP_ICON : sort.endsWith("-asc") ? UP_ICON : DOWN_ICON}</button>`
+        : "")}
       ${all.length ? `<div class="search-box"><input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off"><button type="button" class="sort-btn" id="sortBtn" data-action="open-sort" aria-label="Sort: ${esc(sortLabel)}" title="Sort: ${esc(sortLabel)}">${SORT_ICON}</button></div>` : ""}
       <div class="list${arrangeable ? " arrangeable" : ""}" id="shelfList">${games.length ? rows : empty}</div>
       <div class="action-bar">${unsaved
@@ -1020,7 +1037,9 @@ var BGH = (() => {
 
   // ---------- Shelf sort sheet ----------
   const SORT_ROWS = [["Name", "name", "A–Z", "Z–A"], ["Players", "players", "Fewest", "Most"], ["Time", "time", "Shortest", "Longest"], ["Complexity", "complexity", "Lightest", "Heaviest"]];
-  function openSortSheet() {
+  let sortAnchor = "sortBtn"; // the control that opened the menu: the icon in the search box or the label in the header
+  function openSortSheet(anchorId = "sortBtn") {
+    sortAnchor = anchorId;
     const cur = shelfSortNow();
     const btn = (key, text, label) => `<button type="button" data-sort="${key}" aria-pressed="${cur === key}" aria-label="${esc(label)}">${esc(text)}</button>`;
     $("sortOptions").innerHTML = SORT_ROWS.map(([name, f, asc, desc]) => `
@@ -1028,7 +1047,19 @@ var BGH = (() => {
         <div class="pair">${btn(f + "-asc", asc, `${name}: ${asc}`)}${btn(f + "-desc", desc, `${name}: ${desc}`)}</div></div>`).join("") + `
       <div class="sort-row${cur === "custom" ? " on" : ""}"><button type="button" class="sort-mine" data-sort="custom" aria-pressed="${cur === "custom"}"><span>My order</span><small>hold a game to move it</small></button></div>`;
     $("sortDialog").showModal();
+    placeSortMenu();
   }
+  function placeSortMenu() {
+    // Right below the control, its right edge lined up with the search box (= the screen's content edge).
+    const dlg = $("sortDialog"), anchor = $(sortAnchor), box = document.querySelector("#screen .search-box");
+    if (!dlg.open || !anchor) return;
+    const a = anchor.getBoundingClientRect(), edge = (box || anchor).getBoundingClientRect().right;
+    const top = Math.round(a.bottom + 6);
+    dlg.style.top = top + "px";
+    dlg.style.right = Math.max(8, Math.round(window.innerWidth - edge)) + "px";
+    dlg.style.setProperty("--menu-top", top + "px");
+  }
+  window.addEventListener("resize", placeSortMenu);
   $("sortDialog").addEventListener("click", (e) => {
     const dlg = $("sortDialog"), b = e.target.closest("[data-sort]");
     if (b) {
@@ -1305,7 +1336,7 @@ var BGH = (() => {
         if (leavingShelf) saveShelfSort();
         break;
       }
-      case "open-sort": openSortSheet(); break;
+      case "open-sort": openSortSheet(b.id); break;
       case "cancel-order": ui.shelf.order = null; render(); break; // a picked-but-unsaved My order sort is still saved on leaving
       case "save-order": {
         const order = ui.shelf.order;
