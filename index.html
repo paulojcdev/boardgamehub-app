@@ -69,6 +69,27 @@
 
   input.field, select.field { height:48px; width:100%; border:1px solid var(--line); border-radius:14px; background:var(--card); padding:0 14px; font-size:16px; color:var(--text); min-width:0; }
   input.search { border-radius:24px; padding:0 18px; }
+  /* Shelf: sort icon inside the search box, the sort sheet, and lifting a game to move it (My order). */
+  .search-box { position:relative; }
+  .search-box input.search { padding-right:46px; }
+  .sort-btn { position:absolute; right:2px; top:2px; width:44px; height:44px; border:0; border-radius:22px; background:none; color:var(--accent); display:grid; place-items:center; padding:0; }
+  .sort-btn svg { width:16px; height:16px; }
+  dialog.sheet { margin:auto auto 0; width:min(480px, 100%); max-width:100%; border-radius:20px 20px 0 0; border-bottom:0; padding:16px 16px max(20px, env(safe-area-inset-bottom)); }
+  dialog.sheet h2 { font-size:13px; font-weight:400; margin:0 0 6px; }
+  .sort-row { display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:56px; border-top:1px solid var(--divider); }
+  .sort-row.on > span { color:var(--accent); font-weight:700; }
+  .sort-row .pair { display:flex; gap:8px; flex:none; }
+  .sort-row .pair button { min-height:40px; min-width:76px; border:1px solid var(--line); border-radius:20px; background:none; padding:0 12px; font-size:14px; }
+  .sort-row button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .sort-mine { flex:1; display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:56px; border:0 !important; background:none; padding:0; text-align:left; }
+  .sort-mine small { color:var(--muted); font-size:13px; font-weight:400; }
+  .arrangeable { position:relative; }
+  .arrangeable .card { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  .dragging .card { transition:transform .15s ease; }
+  .dragging .card.lifting { transition:none; position:relative; z-index:2; border-color:var(--accent); box-shadow:0 10px 24px rgba(0,0,0,.55); }
+  @media (prefers-reduced-motion: reduce) { .dragging .card { transition:none; } }
+  .action-bar .row > * { flex:1; }
+  .action-bar .row .primary { flex:1.4; }
   .bgg-link { align-self:flex-start; margin:-12px 0 -8px; display:inline-flex; align-items:center; min-height:44px; color:var(--accent); font-size:14px; font-weight:700; text-decoration:none; }
   .bgg-link[hidden] { display:none; }
   .req { color:var(--accent); margin-left:3px; }
@@ -199,6 +220,11 @@
   </form>
 </dialog>
 
+<dialog id="sortDialog" class="sheet" aria-labelledby="sortTitle">
+  <h2 id="sortTitle" class="eyebrow">Sort by</h2>
+  <div id="sortOptions"></div>
+</dialog>
+
 <dialog id="confirmDialog">
   <h2 id="confirmTitle"></h2>
   <p id="confirmText" class="muted"></p>
@@ -257,6 +283,61 @@ var BGH = (() => {
   function pickOne(games, rng = Math.random) {
     if (!games || games.length === 0) return null;
     return games[Math.min(games.length - 1, Math.floor(rng() * games.length))];
+  }
+
+  // ---------- shelf sort + my order ----------
+  const SHELF_SORTS = ["name-asc", "name-desc", "players-asc", "players-desc", "time-asc", "time-desc", "complexity-asc", "complexity-desc", "custom"];
+  const SORT_LABELS = {
+    "name-asc": "Name A–Z", "name-desc": "Name Z–A",
+    "players-asc": "Fewest players first", "players-desc": "Most players first",
+    "time-asc": "Shortest first", "time-desc": "Longest first",
+    "complexity-asc": "Lightest first", "complexity-desc": "Heaviest first",
+    custom: "My order",
+  };
+  /** The saved Shelf sort (data.shelf.sort), Name A–Z when there is none. */
+  const shelfSort = (data) => (data.shelf && SHELF_SORTS.includes(data.shelf.sort) ? data.shelf.sort : "name-asc");
+  /** Shelf games in my order (`order`, else the saved one). Games not in it yet (e.g. just added) go at the end, oldest first. */
+  function customOrder(data, order) {
+    const ids = order || (data.shelf && Array.isArray(data.shelf.order) ? data.shelf.order : []);
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const key = (x) => (rank.has(x.g.id) ? rank.get(x.g.id) : ids.length + x.i);
+    return data.games.filter((g) => !g.removed).map((g, i) => ({ g, i })).sort((a, b) => key(a) - key(b)).map((x) => x.g);
+  }
+  // Players and time sort by the middle of their range. No time / no complexity always goes first; ties go by name.
+  const SORT_KEYS = {
+    players: (g) => (g.minPlayers + g.maxPlayers) / 2,
+    time: (g) => (g.minMinutes == null ? null : (g.minMinutes + g.maxMinutes) / 2),
+    complexity: (g) => (hasComplexity(g) ? g.complexity : null),
+  };
+  /** Shelf games in the given sort (default: the saved one). `order` = an unsaved my-order to show instead of the saved one. */
+  function sortedShelf(data, sort = shelfSort(data), order = null) {
+    if (sort === "custom") return customOrder(data, order);
+    const [field, dir] = (SHELF_SORTS.includes(sort) ? sort : "name-asc").split("-");
+    const games = shelfGames(data);
+    if (field === "name") return dir === "desc" ? games.reverse() : games;
+    const key = SORT_KEYS[field], sign = dir === "desc" ? -1 : 1;
+    return games.sort((a, b) => {
+      const x = key(a), y = key(b);
+      if (x === y) return 0; // stable: stays by name
+      if (x == null) return -1;
+      if (y == null) return 1;
+      return sign * (x - y);
+    });
+  }
+  /** Save the Shelf sort, and with `order` my order too (the saved order is kept otherwise). */
+  function setShelf(data, sort, order = null) {
+    if (!SHELF_SORTS.includes(sort)) throw new InputError(["Unknown sort."]);
+    const shelf = { sort };
+    if (order) shelf.order = customOrder(data, order).map((g) => g.id);
+    else if (data.shelf && Array.isArray(data.shelf.order)) shelf.order = data.shelf.order;
+    data.shelf = shelf;
+    return shelf;
+  }
+  /** Move one game in a list of ids (my order) to a new index. */
+  function moveId(ids, id, to) {
+    const out = ids.filter((x) => x !== id);
+    out.splice(Math.max(0, Math.min(to, out.length)), 0, id);
+    return out;
   }
 
   // ---------- dates ----------
@@ -497,6 +578,23 @@ var BGH = (() => {
         for (const id of y.winnerIds) if (!y.playerIds.includes(id)) out.push(`${w}: winner ${id} is not among the players`);
       }
     });
+    // Optional: how the Shelf is sorted, and my order (game ids).
+    if ("shelf" in d) {
+      const s = d.shelf;
+      if (!s || typeof s !== "object" || Array.isArray(s)) out.push("shelf must be an object");
+      else {
+        if (!SHELF_SORTS.includes(s.sort)) out.push(`shelf: unknown sort ${s.sort}`);
+        if ("order" in s && !Array.isArray(s.order)) out.push("shelf: order must be a list");
+        else if ("order" in s) {
+          const inOrder = new Set();
+          for (const id of s.order) {
+            if (!gameIds.has(id)) out.push(`shelf: unknown game ${id} in order`);
+            else if (inOrder.has(id)) out.push(`shelf: game ${id} is twice in order`);
+            inOrder.add(id);
+          }
+        }
+      }
+    }
     return out;
   }
 
@@ -635,6 +733,7 @@ var BGH = (() => {
 
   return {
     GROUPS, complexityGroup, fitGames, fitLabel, toggleGroup, pickOne, shelfGames,
+    SHELF_SORTS, SORT_LABELS, shelfSort, sortedShelf, customOrder, setShelf, moveId,
     localToday, isDate, shortDate,
     validateGameInput, cleanBggUrl, hasComplexity, upgradeData, addGame, editGame, removeGame, InputError,
     activePlayers, findPlayerByName, addPlayer, removePlayer, mePlayer, normName,
@@ -671,7 +770,9 @@ var BGH = (() => {
     screen: "pick",
     prevScreen: "pick",     // where closing Settings goes back to
     pick: { players: 2, group: null, pickedId: null },
-    shelf: { query: "" },
+    // sort: picked here but not saved yet (null = the saved one); saved on leaving the Shelf.
+    // order: my order with unsaved moves (null = none); saved with "Save order".
+    shelf: { query: "", sort: null, order: null },
     plays: { gameId: "", date: BGH.localToday(), sel: null, adding: false, newName: "", editingPlayers: false },
     loadError: null,
   };
@@ -887,11 +988,17 @@ var BGH = (() => {
       </div>`;
   }
 
+  const shelfSortNow = () => ui.shelf.sort || BGH.shelfSort(data());
+  const SORT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/></svg>`;
   function renderShelf() {
     const d = data();
-    const all = BGH.shelfGames(d);
+    const sort = shelfSortNow(), custom = sort === "custom";
+    const all = BGH.sortedShelf(d, sort, custom ? ui.shelf.order : null);
     const q = BGH.normName(ui.shelf.query);
     const games = q ? all.filter((g) => BGH.normName(g.name).includes(q)) : all;
+    const arrangeable = custom && !q && games.length > 1;
+    const unsaved = custom && !!ui.shelf.order;
+    const sortLabel = BGH.SORT_LABELS[sort];
     const rows = games.map((g) => `
       <div class="card shelf-card" data-game="${esc(g.id)}">
         <button type="button" class="open" data-action="edit-game" data-id="${esc(g.id)}" aria-label="Edit ${esc(g.name)}">
@@ -904,9 +1011,53 @@ var BGH = (() => {
       : `<div class="empty">No game matches “${esc(ui.shelf.query.trim())}”.</div>`;
     return `
       ${header("Collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
-      ${all.length ? `<input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off">` : ""}
-      <div class="list" id="shelfList">${games.length ? rows : empty}</div>
-      <div class="action-bar"><button type="button" class="primary" data-action="add-game">+ Add game</button></div>`;
+      ${all.length ? `<div class="search-box"><input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off"><button type="button" class="sort-btn" id="sortBtn" data-action="open-sort" aria-label="Sort: ${esc(sortLabel)}" title="Sort: ${esc(sortLabel)}">${SORT_ICON}</button></div>` : ""}
+      <div class="list${arrangeable ? " arrangeable" : ""}" id="shelfList">${games.length ? rows : empty}</div>
+      <div class="action-bar">${unsaved
+        ? `<div class="row"><button type="button" class="secondary" data-action="cancel-order">Cancel</button><button type="button" class="primary" data-action="save-order">Save order</button></div>`
+        : `<button type="button" class="primary" data-action="add-game">+ Add game</button>`}</div>`;
+  }
+
+  // ---------- Shelf sort sheet ----------
+  const SORT_ROWS = [["Name", "name", "A–Z", "Z–A"], ["Players", "players", "Fewest", "Most"], ["Time", "time", "Shortest", "Longest"], ["Complexity", "complexity", "Lightest", "Heaviest"]];
+  function openSortSheet() {
+    const cur = shelfSortNow();
+    const btn = (key, text, label) => `<button type="button" data-sort="${key}" aria-pressed="${cur === key}" aria-label="${esc(label)}">${esc(text)}</button>`;
+    $("sortOptions").innerHTML = SORT_ROWS.map(([name, f, asc, desc]) => `
+      <div class="sort-row${cur.startsWith(f + "-") ? " on" : ""}"><span>${name}</span>
+        <div class="pair">${btn(f + "-asc", asc, `${name}: ${asc}`)}${btn(f + "-desc", desc, `${name}: ${desc}`)}</div></div>`).join("") + `
+      <div class="sort-row${cur === "custom" ? " on" : ""}"><button type="button" class="sort-mine" data-sort="custom" aria-pressed="${cur === "custom"}"><span>My order</span><small>hold a game to move it</small></button></div>`;
+    $("sortDialog").showModal();
+  }
+  $("sortDialog").addEventListener("click", (e) => {
+    const dlg = $("sortDialog"), b = e.target.closest("[data-sort]");
+    if (b) {
+      ui.shelf.sort = b.dataset.sort === BGH.shelfSort(data()) ? null : b.dataset.sort;
+      dlg.close();
+      render();
+      const list = $("shelfList"); if (list) list.scrollTop = 0;
+      return;
+    }
+    // A tap on the dimmed backdrop closes the sheet.
+    const r = dlg.getBoundingClientRect();
+    if (e.target === dlg && (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right)) dlg.close();
+  });
+  /**
+   * A sort picked on the Shelf is saved (one commit) when leaving the Shelf.
+   * My order with unsaved moves waits: Save order then saves the sort and the order in one commit.
+   */
+  async function saveShelfSort() {
+    const d = data(), sort = ui.shelf.sort;
+    if (!d || !sort) return;
+    if (sort === BGH.shelfSort(d)) { ui.shelf.sort = null; return; }
+    if (sort === "custom" && ui.shelf.order) return;
+    const out = await change("Saving", `Shelf sort: ${BGH.SORT_LABELS[sort]}`, (draft) => BGH.setShelf(draft, sort));
+    if (out && ui.shelf.sort === sort) ui.shelf.sort = null;
+  }
+  /** Unsaved my-order moves: null when the order is back to the saved one. */
+  function setPendingOrder(ids) {
+    const saved = BGH.sortedShelf(data(), "custom").map((g) => g.id);
+    ui.shelf.order = ids.join("\u0000") === saved.join("\u0000") ? null : ids;
   }
 
   function renderPlays() {
@@ -1046,8 +1197,10 @@ var BGH = (() => {
   });
   const TABS = ["pick", "shelf", "plays"];
   function goTo(screen, slide) {
+    const leavingShelf = ui.screen === "shelf" && screen !== "shelf";
     ui.screen = screen;
     render();
+    if (leavingShelf) saveShelfSort();
     window.scrollTo(0, 0);
     const el = $("screen");
     el.classList.remove("slide-from-left", "slide-from-right");
@@ -1146,7 +1299,21 @@ var BGH = (() => {
     const a = b.dataset.action, id = b.dataset.id, d = data();
     const s = ui.pick, p = ui.plays;
     switch (a) {
-      case "settings": ui.prevScreen = ui.screen; ui.screen = "settings"; render(); window.scrollTo(0, 0); break;
+      case "settings": {
+        const leavingShelf = ui.screen === "shelf";
+        ui.prevScreen = ui.screen; ui.screen = "settings"; render(); window.scrollTo(0, 0);
+        if (leavingShelf) saveShelfSort();
+        break;
+      }
+      case "open-sort": openSortSheet(); break;
+      case "cancel-order": ui.shelf.order = null; render(); break; // a picked-but-unsaved My order sort is still saved on leaving
+      case "save-order": {
+        const order = ui.shelf.order;
+        if (!order) break;
+        const out = await change("Saving", "Shelf: save my order", (draft) => BGH.setShelf(draft, "custom", order));
+        if (out) { ui.shelf.order = null; ui.shelf.sort = null; render(); }
+        break;
+      }
       case "close-settings": closeSettings(); break;
       case "players-dec": s.players = Math.max(1, s.players - 1); s.pickedId = null; render(); break;
       case "players-inc": s.players = Math.min(20, s.players + 1); s.pickedId = null; render(); break;
@@ -1213,10 +1380,110 @@ var BGH = (() => {
       case "forget-token":
         if (await confirmBox("Forget the token?", "It will be removed from this browser. You'll need to paste it again.", "Forget")) {
           ls.set(TOKEN_KEY, ""); store = null; ui.loadError = null; ui.screen = "pick"; ui.plays.sel = null;
+          ui.shelf = { query: "", sort: null, order: null };
           showSetup("");
         }
         break;
     }
+  });
+
+  // ---------- Shelf, My order: hold a game ~½ s to lift it, drag it to its new place ----------
+  // Only when My order is shown and nothing is searched. A plain tap still opens Edit; scrolling never moves anything.
+  const HOLD_MS = 450, SLOP = 8, EDGE = 48;
+  let hold = null, drag = null, swallowClick = false;
+  const canArrange = () => !busy && ui.screen === "shelf" && !!data() && shelfSortNow() === "custom" && !BGH.normName(ui.shelf.query);
+  function cancelHold() { if (hold) { clearTimeout(hold.timer); hold = null; } }
+  window.addEventListener("pointerdown", () => { swallowClick = false; }, true);
+  $("screen").addEventListener("pointerdown", (e) => {
+    if (drag || e.button !== 0 || !canArrange()) return;
+    const card = e.target.closest("#shelfList.arrangeable .card[data-game]");
+    if (!card || e.target.closest("[data-action=remove-game]")) return;
+    cancelHold();
+    hold = { card, y: e.clientY, x: e.clientX, lastY: e.clientY, timer: setTimeout(startDrag, HOLD_MS) };
+  });
+  // A long press would otherwise open the browser's menu or select text.
+  $("screen").addEventListener("contextmenu", (e) => { if (hold || drag || e.target.closest("#shelfList.arrangeable")) e.preventDefault(); });
+  function startDrag() {
+    const h = hold; hold = null;
+    if (!h || !h.card.isConnected || !canArrange()) return;
+    const list = $("shelfList");
+    const cards = [...list.querySelectorAll(".card[data-game]")];
+    const gap = parseFloat(getComputedStyle(list).rowGap) || 10;
+    const listTop = () => list.getBoundingClientRect().top;
+    const at = (y) => y - listTop() + list.scrollTop; // pointer y inside the list's content
+    drag = {
+      card: h.card, list, cards, from: cards.indexOf(h.card), to: cards.indexOf(h.card),
+      mids: cards.map((c) => c.offsetTop + c.offsetHeight / 2), step: h.card.offsetHeight + gap,
+      at, start: at(h.lastY), lastY: h.lastY, raf: 0,
+    };
+    swipe = null; // not a tab swipe
+    h.card.classList.add("lifting");
+    list.classList.add("dragging");
+    if (navigator.vibrate) try { navigator.vibrate(12); } catch {}
+    moveDrag(h.lastY);
+    drag.raf = requestAnimationFrame(autoScroll);
+  }
+  function moveDrag(y) {
+    const g = drag;
+    if (!g.card.isConnected) { endDrag(false); return; }
+    g.lastY = y;
+    const dy = g.at(y) - g.start;
+    g.card.style.transform = `translateY(${dy}px) scale(1.02)`;
+    const center = g.mids[g.from] + dy;
+    g.to = g.mids.filter((m, i) => i !== g.from && m < center).length;
+    g.cards.forEach((c, i) => {
+      if (i === g.from) return;
+      const shift = i > g.from && i <= g.to ? -g.step : i < g.from && i >= g.to ? g.step : 0;
+      c.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+  }
+  // Near the top or bottom edge of the list, scroll it so a game can travel the whole list.
+  function autoScroll() {
+    if (!drag) return;
+    const r = drag.list.getBoundingClientRect(), y = drag.lastY;
+    const v = y < r.top + EDGE ? -Math.ceil((r.top + EDGE - y) / 4) : y > r.bottom - EDGE ? Math.ceil((y - r.bottom + EDGE) / 4) : 0;
+    if (v) {
+      const before = drag.list.scrollTop;
+      drag.list.scrollTop += v;
+      if (drag.list.scrollTop !== before) moveDrag(y);
+    }
+    if (drag) drag.raf = requestAnimationFrame(autoScroll);
+  }
+  function endDrag(drop) {
+    const g = drag; drag = null;
+    cancelAnimationFrame(g.raf);
+    g.list.classList.remove("dragging");
+    g.cards.forEach((c) => { c.style.transform = ""; c.classList.remove("lifting"); });
+    swallowClick = true; // the click that ends a drag doesn't open Edit
+    if (drop && g.to !== g.from && g.card.isConnected) {
+      setPendingOrder(BGH.moveId(g.cards.map((c) => c.dataset.game), g.card.dataset.game, g.to));
+      render();
+    }
+  }
+  window.addEventListener("pointermove", (e) => {
+    if (drag) { moveDrag(e.clientY); return; }
+    if (!hold) return;
+    if (Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > SLOP) cancelHold(); // moved first: scrolling, not lifting
+    else hold.lastY = e.clientY;
+  });
+  window.addEventListener("pointerup", () => { cancelHold(); if (drag) endDrag(true); });
+  window.addEventListener("pointercancel", () => { cancelHold(); if (drag) endDrag(false); });
+  // While a game is lifted, a finger moving must not scroll the page or the list.
+  document.addEventListener("touchmove", (e) => { if (drag && e.cancelable) e.preventDefault(); }, { passive: false });
+  window.addEventListener("click", (e) => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+  // Keyboard: Alt+↑ / Alt+↓ on a game moves it one place (My order).
+  $("screen").addEventListener("keydown", (e) => {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown") || !canArrange()) return;
+    const card = e.target.closest("#shelfList .card[data-game]");
+    if (!card) return;
+    e.preventDefault();
+    const ids = [...$("shelfList").querySelectorAll(".card[data-game]")].map((c) => c.dataset.game);
+    const id = card.dataset.game, i = ids.indexOf(id), to = i + (e.key === "ArrowUp" ? -1 : 1);
+    if (to < 0 || to >= ids.length) return;
+    setPendingOrder(BGH.moveId(ids, id, to));
+    render();
+    const again = document.querySelector(`#shelfList [data-game="${CSS.escape(id)}"] .open`);
+    if (again) { again.focus(); again.scrollIntoView({ block: "nearest" }); }
   });
 
   // ---------- start ----------
