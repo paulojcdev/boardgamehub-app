@@ -90,6 +90,9 @@
   .section-lbl { font-size:13px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
 
   /* Nav + status */
+  /* Main action (Pick one / Add game): stays on screen just above the bottom nav while the list scrolls. */
+  .action-bar { position:sticky; bottom:calc(max(63px, 51px + env(safe-area-inset-bottom))); z-index:2; margin:0 -16px; padding:10px 16px 12px; background:var(--bg); display:flex; flex-direction:column; gap:10px; }
+  .action-bar .primary { width:100%; }
   nav.bottom { position:fixed; left:0; right:0; bottom:0; background:var(--bg); border-top:1px solid var(--divider); padding:6px 16px max(12px, env(safe-area-inset-bottom)); }
   nav.bottom .in { max-width:480px; margin:0 auto; display:flex; gap:8px; justify-content:space-around; color:var(--muted); }
   nav.bottom button { border:0; background:none; min-height:44px; padding:0 16px; color:var(--muted); font-size:16px; }
@@ -164,7 +167,8 @@
     <div class="grid2">
       <label class="lbl">Min players <input class="field" name="minPlayers" inputmode="numeric"></label>
       <label class="lbl">Max players <input class="field" name="maxPlayers" inputmode="numeric"></label>
-      <label class="lbl">Play time (min) <input class="field" name="minutes" inputmode="numeric"></label>
+      <label class="lbl">Min time (min) <input class="field" name="minMinutes" inputmode="numeric"></label>
+      <label class="lbl">Max time (min) <input class="field" name="maxMinutes" inputmode="numeric" placeholder="same"></label>
       <label class="lbl">Complexity (1–5) <input class="field" name="complexity" inputmode="decimal"></label>
     </div>
     <div id="gameFormError" class="err-text" role="alert" hidden></div>
@@ -257,15 +261,19 @@ var BGH = (() => {
     const name = cleanName(input.name);
     if (!name) errors.push("Give the game a name.");
     const num = (v) => (typeof v === "number" ? v : String(v == null ? "" : v).trim() === "" ? NaN : Number(String(v).trim().replace(",", ".")));
-    const minP = num(input.minPlayers), maxP = num(input.maxPlayers), minutes = num(input.minutes), cx = num(input.complexity);
+    const minP = num(input.minPlayers), maxP = num(input.maxPlayers), cx = num(input.complexity);
+    const minT = num(input.minMinutes);
+    const maxT = String(input.maxMinutes == null ? "" : input.maxMinutes).trim() === "" ? minT : num(input.maxMinutes); // empty max = fixed time
     const isCount = (n) => Number.isInteger(n) && n >= 1;
     if (!isCount(minP)) errors.push("Min players must be a whole number, 1 or more.");
     if (!isCount(maxP)) errors.push("Max players must be a whole number, 1 or more.");
     if (isCount(minP) && isCount(maxP) && minP > maxP) errors.push("Min players can't be more than max players.");
-    if (!isCount(minutes)) errors.push("Play time must be a whole number of minutes.");
+    if (!isCount(minT)) errors.push("Min time must be a whole number of minutes.");
+    else if (!isCount(maxT)) errors.push("Max time must be a whole number of minutes (or empty).");
+    else if (minT > maxT) errors.push("Min time can't be more than max time.");
     if (!Number.isFinite(cx) || cx < 1 || cx > 5) errors.push("Complexity must be a number from 1 to 5.");
     if (errors.length) return { ok: false, errors };
-    return { ok: true, errors, value: { name, minPlayers: minP, maxPlayers: maxP, minutes, complexity: Math.round(cx * 100) / 100 } };
+    return { ok: true, errors, value: { name, minPlayers: minP, maxPlayers: maxP, minMinutes: minT, maxMinutes: maxT, complexity: Math.round(cx * 100) / 100 } };
   }
   function addGame(data, input, newId = randomId) {
     const v = validateGameInput(input);
@@ -388,7 +396,7 @@ var BGH = (() => {
       meta: `${shortDate(play.date, today)} · ${winners.length ? joinNames(winners) + " won" : "No winner"}`,
     };
   }
-  const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"} · ${g.minutes} min`;
+  const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"} · ${g.minMinutes === g.maxMinutes ? g.minMinutes : g.minMinutes + "–" + g.maxMinutes} min`;
 
   // ---------- data.json shape ----------
   function emptyData() {
@@ -407,10 +415,12 @@ var BGH = (() => {
       const w = `game ${i + 1}`;
       if (!str(g.id)) out.push(`${w}: missing id`); else seen(g.id, w);
       if (!str(g.name)) out.push(`${w}: missing name`);
-      for (const k of ["minPlayers", "maxPlayers", "minutes"]) if (!Number.isInteger(g[k]) || g[k] < 1) out.push(`${w}: ${k} must be a whole number ≥ 1`);
+      for (const k of ["minPlayers", "maxPlayers", "minMinutes", "maxMinutes"]) if (!Number.isInteger(g[k]) || g[k] < 1) out.push(`${w}: ${k} must be a whole number ≥ 1`);
       if (typeof g.complexity !== "number" || !(g.complexity >= 1 && g.complexity <= 5)) out.push(`${w}: complexity must be 1–5`);
       if (typeof g.removed !== "boolean") out.push(`${w}: removed must be true/false`);
       if (g.minPlayers > g.maxPlayers) out.push(`${w}: minPlayers > maxPlayers`);
+      if (g.minMinutes > g.maxMinutes) out.push(`${w}: minMinutes > maxMinutes`);
+      if ("minutes" in g) out.push(`${w}: old minutes field`);
     });
     d.players.forEach((p, i) => {
       const w = `player ${i + 1}`;
@@ -455,6 +465,18 @@ var BGH = (() => {
     for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     return btoa(bin);
   }
+  /** Older data.json kept one play time per game ("minutes"): turn it into a min–max range. */
+  function upgradeData(d) {
+    d.games = d.games.map((g) => {
+      if (!g || typeof g !== "object" || !("minutes" in g) || "minMinutes" in g || "maxMinutes" in g) return g;
+      const out = {};
+      for (const [k, v] of Object.entries(g)) {
+        if (k === "minutes") { out.minMinutes = v; out.maxMinutes = v; } else out[k] = v;
+      }
+      return out;
+    });
+    return d;
+  }
   const serialize = (data) => JSON.stringify(data, null, 2) + "\n";
   /** Parse data.json text; refuse anything that isn't valid JSON in a usable shape. */
   function parseDataText(text) {
@@ -466,7 +488,7 @@ var BGH = (() => {
       const problems = validateData(d);
       throw new StoreError("bad-shape", `data.json doesn't have the expected shape (${problems[0] || "no \"You\" player"}), so the app won't touch it. Fix it on GitHub, then reload.`);
     }
-    return d;
+    return upgradeData(d);
   }
   const looksLikeToken = (t) => /^(github_pat_|ghp_|gho_|ghu_|ghs_)[A-Za-z0-9_]{20,}$/.test(String(t || ""));
 
@@ -564,7 +586,7 @@ var BGH = (() => {
   return {
     GROUPS, complexityGroup, fitGames, fitLabel, toggleGroup, pickOne, shelfGames,
     localToday, isDate, shortDate,
-    validateGameInput, addGame, editGame, removeGame, InputError,
+    validateGameInput, upgradeData, addGame, editGame, removeGame, InputError,
     activePlayers, findPlayerByName, addPlayer, removePlayer, mePlayer, normName,
     newSelection, togglePlayer, toggleWinner, pruneSelection, playProblems, canSavePlay, logPlay, deletePlay,
     recentPlays, describePlay, gameSummary, joinNames,
@@ -801,8 +823,10 @@ var BGH = (() => {
       </div>
       <div class="eyebrow" id="fitCount" style="margin-top:4px" aria-live="polite">${BGH.fitLabel(games.length)}</div>
       <div class="list" id="fitList">${games.length ? cards : empty}</div>
-      <div class="picked-msg" id="pickedMsg" aria-live="polite">${picked ? `Tonight: <b>${esc(picked.name)}</b>` : ""}</div>
-      <button type="button" class="primary" data-action="pick-one" ${games.length ? "" : "disabled"}>${picked && games.length > 1 ? "Pick another" : "Pick one for me"}</button>`;
+      <div class="action-bar">
+        <div class="picked-msg" id="pickedMsg" aria-live="polite">${picked ? `Tonight: <b>${esc(picked.name)}</b>` : ""}</div>
+        <button type="button" class="primary" data-action="pick-one" ${games.length ? "" : "disabled"}>${picked && games.length > 1 ? "Pick another" : "Pick one for me"}</button>
+      </div>`;
   }
 
   function renderShelf() {
@@ -824,7 +848,7 @@ var BGH = (() => {
       ${header("Your collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
       ${all.length ? `<input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off">` : ""}
       <div class="list" id="shelfList">${games.length ? rows : empty}</div>
-      <button type="button" class="primary" data-action="add-game">+ Add game</button>`;
+      <div class="action-bar"><button type="button" class="primary" data-action="add-game">+ Add game</button></div>`;
   }
 
   function renderPlays() {
@@ -908,7 +932,8 @@ var BGH = (() => {
     f.name.value = game ? game.name : "";
     f.minPlayers.value = game ? game.minPlayers : "";
     f.maxPlayers.value = game ? game.maxPlayers : "";
-    f.minutes.value = game ? game.minutes : "";
+    f.minMinutes.value = game ? game.minMinutes : "";
+    f.maxMinutes.value = game && game.maxMinutes !== game.minMinutes ? game.maxMinutes : "";
     f.complexity.value = game ? game.complexity : "";
     $("gameFormError").hidden = true;
     updateBggLink();
@@ -926,7 +951,7 @@ var BGH = (() => {
     e.preventDefault();
     if (busy) return;
     const f = $("gameForm");
-    const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minutes: f.minutes.value, complexity: f.complexity.value };
+    const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minMinutes: f.minMinutes.value, maxMinutes: f.maxMinutes.value, complexity: f.complexity.value };
     const v = BGH.validateGameInput(input);
     if (!v.ok) { $("gameFormError").textContent = v.errors.join(" "); $("gameFormError").hidden = false; return; }
     $("gameFormError").hidden = true;
