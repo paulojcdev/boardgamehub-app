@@ -71,6 +71,9 @@
   input.search { border-radius:24px; padding:0 18px; }
   .bgg-link { align-self:flex-start; margin:-12px 0 -8px; display:inline-flex; align-items:center; min-height:44px; color:var(--accent); font-size:14px; font-weight:700; text-decoration:none; }
   .bgg-link[hidden] { display:none; }
+  .req { color:var(--accent); margin-left:3px; }
+  .req-note { font-size:12px; color:var(--muted); margin-top:-4px; }
+  .score.none { color:var(--muted); font-weight:400; }
   label.lbl { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); min-width:0; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .grid2 > * { min-width:0; }
@@ -176,15 +179,18 @@
 <dialog id="gameDialog">
   <h2 id="gameDialogTitle">Add game</h2>
   <form id="gameForm" method="dialog" novalidate>
-    <label class="lbl">Name <input class="field" name="name" maxlength="120" autocomplete="off"></label>
+    <label class="lbl"><span>Name<span class="req" aria-hidden="true">*</span></span><input class="field" name="name" maxlength="120" autocomplete="off" required></label>
     <a id="bggLink" class="bgg-link" target="_blank" rel="noopener noreferrer" hidden>Look up on BoardGameGeek ↗</a>
+    <label class="lbl"><span>BoardGameGeek page</span><input class="field" name="bggUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://boardgamegeek.com/boardgame/…"></label>
+    <a id="bggOpen" class="bgg-link" target="_blank" rel="noopener noreferrer" hidden>Open on BoardGameGeek ↗</a>
     <div class="grid2">
-      <label class="lbl">Min players <input class="field" name="minPlayers" inputmode="numeric"></label>
-      <label class="lbl">Max players <input class="field" name="maxPlayers" inputmode="numeric"></label>
-      <label class="lbl">Min time (min) <input class="field" name="minMinutes" inputmode="numeric"></label>
-      <label class="lbl">Max time (min) <input class="field" name="maxMinutes" inputmode="numeric" placeholder="same"></label>
-      <label class="lbl">Complexity (1–5) <input class="field" name="complexity" inputmode="decimal"></label>
+      <label class="lbl"><span>Min players<span class="req" aria-hidden="true">*</span></span><input class="field" name="minPlayers" inputmode="numeric" required></label>
+      <label class="lbl"><span>Max players<span class="req" aria-hidden="true">*</span></span><input class="field" name="maxPlayers" inputmode="numeric" required></label>
+      <label class="lbl"><span>Min time (min)</span><input class="field" name="minMinutes" inputmode="numeric"></label>
+      <label class="lbl"><span>Max time (min)</span><input class="field" name="maxMinutes" inputmode="numeric" placeholder="same"></label>
+      <label class="lbl"><span>Complexity (1–5)</span><input class="field" name="complexity" inputmode="decimal"></label>
     </div>
+    <div class="req-note"><span class="req" aria-hidden="true">*</span> required</div>
     <div id="gameFormError" class="err-text" role="alert" hidden></div>
     <div class="actions">
       <button type="button" class="secondary" data-action="close-dialog">Cancel</button>
@@ -237,10 +243,12 @@ var BGH = (() => {
   const shelfGames = (data) => data.games.filter((g) => !g.removed).slice().sort(byName);
 
   /** Games that fit a player count and (optional) complexity group. Play time never filters. */
+  const hasComplexity = (g) => typeof g.complexity === "number";
+  /** A game without a complexity is never filtered out by the complexity buttons. */
   function fitGames(data, players, group) {
     return shelfGames(data).filter((g) =>
       g.minPlayers <= players && players <= g.maxPlayers &&
-      (!group || complexityGroup(g.complexity) === group));
+      (!group || !hasComplexity(g) || complexityGroup(g.complexity) === group));
   }
   const fitLabel = (n) => (n === 1 ? "1 game fits" : `${n} games fit`);
   /** Tapping the selected group again clears it (no separate "Any"). */
@@ -275,19 +283,41 @@ var BGH = (() => {
     const name = cleanName(input.name);
     if (!name) errors.push("Give the game a name.");
     const num = (v) => (typeof v === "number" ? v : String(v == null ? "" : v).trim() === "" ? NaN : Number(String(v).trim().replace(",", ".")));
+    const blank = (v) => v == null || String(v).trim() === "";
     const minP = num(input.minPlayers), maxP = num(input.maxPlayers), cx = num(input.complexity);
-    const minT = num(input.minMinutes);
-    const maxT = String(input.maxMinutes == null ? "" : input.maxMinutes).trim() === "" ? minT : num(input.maxMinutes); // empty max = fixed time
+    // Play time is optional; min or max alone is a fixed time.
+    let minT = num(input.minMinutes), maxT = num(input.maxMinutes);
+    if (blank(input.maxMinutes)) maxT = minT;
+    if (blank(input.minMinutes)) minT = maxT;
     const isCount = (n) => Number.isInteger(n) && n >= 1;
     if (!isCount(minP)) errors.push("Min players must be a whole number, 1 or more.");
     if (!isCount(maxP)) errors.push("Max players must be a whole number, 1 or more.");
     if (isCount(minP) && isCount(maxP) && minP > maxP) errors.push("Min players can't be more than max players.");
-    if (!isCount(minT)) errors.push("Min time must be a whole number of minutes.");
-    else if (!isCount(maxT)) errors.push("Max time must be a whole number of minutes (or empty).");
-    else if (minT > maxT) errors.push("Min time can't be more than max time.");
-    if (!Number.isFinite(cx) || cx < 1 || cx > 5) errors.push("Complexity must be a number from 1 to 5.");
+    const noTime = blank(input.minMinutes) && blank(input.maxMinutes);
+    if (!noTime) {
+      if (!blank(input.minMinutes) && !isCount(num(input.minMinutes))) errors.push("Min time must be a whole number of minutes (or empty).");
+      else if (!blank(input.maxMinutes) && !isCount(num(input.maxMinutes))) errors.push("Max time must be a whole number of minutes (or empty).");
+      else if (minT > maxT) errors.push("Min time can't be more than max time.");
+    }
+    const noCx = blank(input.complexity);
+    if (!noCx && (!Number.isFinite(cx) || cx < 1 || cx > 5)) errors.push("Complexity must be a number from 1 to 5 (or empty).");
+    const url = cleanBggUrl(input.bggUrl);
+    if (url === false) errors.push("The BoardGameGeek page must be a boardgamegeek.com link (or empty).");
     if (errors.length) return { ok: false, errors };
-    return { ok: true, errors, value: { name, minPlayers: minP, maxPlayers: maxP, minMinutes: minT, maxMinutes: maxT, complexity: Math.round(cx * 100) / 100 } };
+    const value = { name, minPlayers: minP, maxPlayers: maxP };
+    if (!noTime) { value.minMinutes = minT; value.maxMinutes = maxT; }
+    if (!noCx) value.complexity = Math.round(cx * 100) / 100;
+    if (url) value.bggUrl = url;
+    return { ok: true, errors, value };
+  }
+  const BGG_URL = /^https:\/\/(www\.)?boardgamegeek\.com\/[^\s"'<>]+$/i;
+  /** "" when empty, the cleaned https link for a BoardGameGeek page, false for anything else. */
+  function cleanBggUrl(v) {
+    let u = String(v == null ? "" : v).trim();
+    if (!u) return "";
+    if (/^(www\.)?boardgamegeek\.com\//i.test(u)) u = "https://" + u;
+    u = u.replace(/^http:\/\//i, "https://");
+    return BGG_URL.test(u) ? u : false;
   }
   function addGame(data, input, newId = randomId) {
     const v = validateGameInput(input);
@@ -301,8 +331,10 @@ var BGH = (() => {
     if (!game) throw new InputError(["That game no longer exists."]);
     const v = validateGameInput(input);
     if (!v.ok) throw new InputError(v.errors);
-    Object.assign(game, v.value);
-    return game;
+    // Rebuild so cleared optional fields (time, complexity, link) are dropped.
+    const i = data.games.indexOf(game);
+    data.games[i] = { id: game.id, ...v.value, removed: game.removed };
+    return data.games[i];
   }
   function removeGame(data, id) {
     const game = data.games.find((g) => g.id === id);
@@ -410,7 +442,7 @@ var BGH = (() => {
       meta: `${n} ${n === 1 ? "player" : "players"} · ${winners.length ? joinNames(winners) + " won" : "No winner"}`,
     };
   }
-  const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"} · ${g.minMinutes === g.maxMinutes ? g.minMinutes : g.minMinutes + "–" + g.maxMinutes} min`;
+  const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"}${g.minMinutes == null ? "" : ` · ${g.minMinutes === g.maxMinutes ? g.minMinutes : g.minMinutes + "–" + g.maxMinutes} min`}`;
 
   // ---------- data.json shape ----------
   function emptyData() {
@@ -429,8 +461,12 @@ var BGH = (() => {
       const w = `game ${i + 1}`;
       if (!str(g.id)) out.push(`${w}: missing id`); else seen(g.id, w);
       if (!str(g.name)) out.push(`${w}: missing name`);
-      for (const k of ["minPlayers", "maxPlayers", "minMinutes", "maxMinutes"]) if (!Number.isInteger(g[k]) || g[k] < 1) out.push(`${w}: ${k} must be a whole number ≥ 1`);
-      if (typeof g.complexity !== "number" || !(g.complexity >= 1 && g.complexity <= 5)) out.push(`${w}: complexity must be 1–5`);
+      for (const k of ["minPlayers", "maxPlayers"]) if (!Number.isInteger(g[k]) || g[k] < 1) out.push(`${w}: ${k} must be a whole number ≥ 1`);
+      // Optional: play time (both or neither), complexity, BoardGameGeek link.
+      if (("minMinutes" in g) !== ("maxMinutes" in g)) out.push(`${w}: minMinutes and maxMinutes go together`);
+      for (const k of ["minMinutes", "maxMinutes"]) if (k in g && (!Number.isInteger(g[k]) || g[k] < 1)) out.push(`${w}: ${k} must be a whole number ≥ 1`);
+      if ("complexity" in g && (typeof g.complexity !== "number" || !(g.complexity >= 1 && g.complexity <= 5))) out.push(`${w}: complexity must be 1–5`);
+      if ("bggUrl" in g && !(typeof g.bggUrl === "string" && BGG_URL.test(g.bggUrl))) out.push(`${w}: bggUrl must be a boardgamegeek.com link`);
       if (typeof g.removed !== "boolean") out.push(`${w}: removed must be true/false`);
       if (g.minPlayers > g.maxPlayers) out.push(`${w}: minPlayers > maxPlayers`);
       if (g.minMinutes > g.maxMinutes) out.push(`${w}: minMinutes > maxMinutes`);
@@ -600,7 +636,7 @@ var BGH = (() => {
   return {
     GROUPS, complexityGroup, fitGames, fitLabel, toggleGroup, pickOne, shelfGames,
     localToday, isDate, shortDate,
-    validateGameInput, upgradeData, addGame, editGame, removeGame, InputError,
+    validateGameInput, cleanBggUrl, hasComplexity, upgradeData, addGame, editGame, removeGame, InputError,
     activePlayers, findPlayerByName, addPlayer, removePlayer, mePlayer, normName,
     newSelection, togglePlayer, toggleWinner, pruneSelection, playProblems, canSavePlay, logPlay, deletePlay,
     recentPlays, describePlay, gameSummary, joinNames,
@@ -827,7 +863,7 @@ var BGH = (() => {
     const cards = games.map((g) => `
       <div class="card${g.id === s.pickedId ? " picked" : ""}" data-game="${esc(g.id)}">
         <div><b>${esc(g.name)}</b><div class="sub">${esc(BGH.gameSummary(g))}</div></div>
-        <span class="score" title="${esc(BGH.complexityGroup(g.complexity))}">${esc(g.complexity.toFixed(1))}</span>
+        ${BGH.hasComplexity(g) ? `<span class="score" title="${esc(BGH.complexityGroup(g.complexity))}">${esc(g.complexity.toFixed(1))}</span>` : `<span class="score none" title="No complexity">–</span>`}
         ${g.id === s.pickedId ? `<div class="log-it"><button type="button" class="primary" data-action="log-picked" aria-label="Let's play ${esc(g.name)}: log a play">Let's play!</button></div>` : ""}
       </div>`).join("");
     const empty = BGH.shelfGames(d).length === 0
@@ -859,7 +895,7 @@ var BGH = (() => {
     const rows = games.map((g) => `
       <div class="card shelf-card" data-game="${esc(g.id)}">
         <button type="button" class="open" data-action="edit-game" data-id="${esc(g.id)}" aria-label="Edit ${esc(g.name)}">
-          <b>${esc(g.name)}</b><div class="sub">${esc(BGH.gameSummary(g))} · ${BGH.complexityGroup(g.complexity)} ${esc(g.complexity.toFixed(1))}</div>
+          <b>${esc(g.name)}</b><div class="sub">${esc(BGH.gameSummary(g))}${BGH.hasComplexity(g) ? ` · ${BGH.complexityGroup(g.complexity)} ${esc(g.complexity.toFixed(1))}` : ""}</div>
         </button>
         <button type="button" class="icon-btn" data-action="remove-game" data-id="${esc(g.id)}" aria-label="Remove ${esc(g.name)}">×</button>
       </div>`).join("");
@@ -954,26 +990,31 @@ var BGH = (() => {
     f.name.value = game ? game.name : "";
     f.minPlayers.value = game ? game.minPlayers : "";
     f.maxPlayers.value = game ? game.maxPlayers : "";
-    f.minMinutes.value = game ? game.minMinutes : "";
+    f.minMinutes.value = game && game.minMinutes != null ? game.minMinutes : "";
     f.maxMinutes.value = game && game.maxMinutes !== game.minMinutes ? game.maxMinutes : "";
-    f.complexity.value = game ? game.complexity : "";
+    f.complexity.value = game && BGH.hasComplexity(game) ? game.complexity : "";
+    f.bggUrl.value = game && game.bggUrl ? game.bggUrl : "";
     $("gameFormError").hidden = true;
     updateBggLink();
     $("gameDialog").showModal();
   }
-  // Opens a BoardGameGeek search for the typed name, to look up players, time and weight.
+  // No BoardGameGeek page yet: "Look up" (a search for the typed name) above the field.
+  // A page filled in: "Open" (that page) below the field instead.
   function updateBggLink() {
-    const name = $("gameForm").name.value.trim();
-    const a = $("bggLink");
-    a.hidden = !name;
-    a.href = name ? "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=" + encodeURIComponent(name) : "";
+    const f = $("gameForm"), name = f.name.value.trim(), typed = f.bggUrl.value.trim(), url = BGH.cleanBggUrl(typed);
+    const look = $("bggLink"), open = $("bggOpen");
+    look.hidden = !!typed || !name;
+    look.href = name ? "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=" + encodeURIComponent(name) : "";
+    open.hidden = !url;
+    open.href = url || "";
   }
   $("gameForm").name.addEventListener("input", updateBggLink);
+  $("gameForm").bggUrl.addEventListener("input", updateBggLink);
   $("gameForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (busy) return;
     const f = $("gameForm");
-    const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minMinutes: f.minMinutes.value, maxMinutes: f.maxMinutes.value, complexity: f.complexity.value };
+    const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minMinutes: f.minMinutes.value, maxMinutes: f.maxMinutes.value, complexity: f.complexity.value, bggUrl: f.bggUrl.value };
     const v = BGH.validateGameInput(input);
     if (!v.ok) { $("gameFormError").textContent = v.errors.join(" "); $("gameFormError").hidden = false; return; }
     $("gameFormError").hidden = true;
