@@ -84,9 +84,8 @@
   .chip.removing { border-color:var(--err); color:var(--err); }
   .row { display:flex; gap:8px; align-items:center; }
   .row > input { flex:1; }
-  .play-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--divider); font-size:15px; }
-  .play-row > div { min-width:0; overflow-wrap:anywhere; }
-  .play-row .meta { color:var(--muted); font-size:13px; }
+  /* Recent plays: same cards as Pick and Shelf. */
+  .play-row .info { flex:1; min-width:0; padding:10px 0 10px 18px; overflow-wrap:anywhere; }
   .section-lbl { font-size:13px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
 
   /* Nav + status */
@@ -404,8 +403,8 @@ var BGH = (() => {
     const n = play.playerIds.length;
     const winners = play.winnerIds.map(name);
     return {
-      title: `${game ? game.name : "Unknown game"} · ${n} ${n === 1 ? "player" : "players"}`,
-      meta: `${shortDate(play.date, today)} · ${winners.length ? joinNames(winners) + " won" : "No winner"}`,
+      title: `${game ? game.name : "Unknown game"} · ${shortDate(play.date, today)}`,
+      meta: `${n} ${n === 1 ? "player" : "players"} · ${winners.length ? joinNames(winners) + " won" : "No winner"}`,
     };
   }
   const gameSummary = (g) => `${g.minPlayers === g.maxPlayers ? g.minPlayers : g.minPlayers + "–" + g.maxPlayers} ${g.maxPlayers === 1 ? "player" : "players"} · ${g.minMinutes === g.maxMinutes ? g.minMinutes : g.minMinutes + "–" + g.maxMinutes} min`;
@@ -897,7 +896,7 @@ var BGH = (() => {
     const problems = BGH.playProblems(d, play);
     const rows = BGH.recentPlays(d).map((p) => {
       const t = BGH.describePlay(d, p, today);
-      return `<div class="play-row" data-play="${esc(p.id)}"><div><div>${esc(t.title)}</div><div class="meta">${esc(t.meta)}</div></div>
+      return `<div class="card shelf-card play-row" data-play="${esc(p.id)}"><div class="info"><b>${esc(t.title)}</b><div class="sub">${esc(t.meta)}</div></div>
         <button type="button" class="icon-btn" data-action="delete-play" data-id="${esc(p.id)}" aria-label="Delete play: ${esc(t.title)}, ${esc(t.meta)}">×</button></div>`;
     }).join("");
     return `
@@ -919,7 +918,7 @@ var BGH = (() => {
       <button type="button" class="primary" data-action="save-play" ${problems.length ? "disabled" : ""} title="${esc(problems.join(" "))}">Save</button>`}
       <div>
         <div class="section-lbl" style="margin-top:8px"><span>Recent plays</span></div>
-        <div id="recentPlays">${rows || `<div class="empty">No plays yet. Log your first game night above.</div>`}</div>
+        <div class="list" id="recentPlays">${rows || `<div class="empty">No plays yet. Log your first game above.</div>`}</div>
       </div>`;
   }
 
