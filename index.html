@@ -90,9 +90,17 @@
   .section-lbl { font-size:13px; color:var(--muted); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
 
   /* Nav + status */
-  /* Main action (Pick one / Add game): stays on screen just above the bottom nav while the list scrolls. */
-  .action-bar { position:sticky; bottom:calc(max(63px, 51px + env(safe-area-inset-bottom))); z-index:2; margin:0 -16px; padding:10px 16px 12px; background:var(--bg); display:flex; flex-direction:column; gap:10px; }
+  /* Pick and Shelf fill the screen: header and controls stay put, only the list scrolls, the main button sits above the nav. */
+  #screen.fixed { height:100vh; height:100dvh; overflow:hidden; padding-bottom:max(63px, 51px + env(safe-area-inset-bottom)); }
+  #screen.fixed > * { flex:none; }
+  #screen.fixed > .list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:-4px -6px; padding:4px 6px; }
+  .action-bar { display:flex; flex-direction:column; gap:10px; padding-bottom:12px; }
   .action-bar .primary { width:100%; }
+  @media (max-height:720px) {
+    #screen.fixed { padding-top:max(16px, env(safe-area-inset-top)); gap:12px; }
+    #screen.fixed .dial { width:120px; height:120px; border-width:6px; } #screen.fixed .dial b { font-size:46px; }
+    #screen.fixed h1 { font-size:28px; }
+  }
   nav.bottom { position:fixed; left:0; right:0; bottom:0; background:var(--bg); border-top:1px solid var(--divider); padding:6px 16px max(12px, env(safe-area-inset-bottom)); }
   nav.bottom .in { max-width:480px; margin:0 auto; display:flex; gap:8px; justify-content:space-around; color:var(--muted); }
   nav.bottom button { border:0; background:none; min-height:44px; padding:0 16px; color:var(--muted); font-size:16px; }
@@ -780,9 +788,16 @@ var BGH = (() => {
   function render() {
     document.querySelectorAll("[data-nav]").forEach((b) => (b.dataset.nav === ui.screen ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
     const el = $("screen");
+    const fixed = ui.screen !== "settings" && ui.screen !== "plays" && !!data();
+    // Re-rendering the same list keeps its scroll position.
+    const list = el.querySelector(".list");
+    const keep = fixed && ui.rendered === ui.screen && list ? list.scrollTop : 0;
+    el.classList.toggle("fixed", fixed);
     if (ui.screen === "settings") el.innerHTML = renderSettings();
     else if (!data()) el.innerHTML = renderLoadProblem();
     else el.innerHTML = ui.screen === "shelf" ? renderShelf() : ui.screen === "plays" ? renderPlays() : renderPick();
+    ui.rendered = ui.screen;
+    if (keep) el.querySelector(".list").scrollTop = keep;
     if (busy) setBusy(true);
   }
   const settingsBtn = `<button type="button" class="icon-btn" data-action="settings" aria-label="Settings" title="Settings">⚙</button>`;
@@ -1057,6 +1072,9 @@ var BGH = (() => {
         const g = BGH.pickOne(others);
         s.pickedId = g ? g.id : null;
         render();
+        // Bring the picked game into view in the list.
+        const card = g && document.querySelector(`#fitList [data-game="${CSS.escape(g.id)}"]`);
+        if (card) card.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         break;
       }
       case "add-game": openGameDialog(null); break;
