@@ -996,8 +996,19 @@ var BGH = (() => {
     f.bggUrl.value = game && game.bggUrl ? game.bggUrl : "";
     $("gameFormError").hidden = true;
     updateBggLink();
+    editSnapshot = game ? formSnapshot() : null;
+    updateSaveState();
     $("gameDialog").showModal();
   }
+  // Edit game: Save stays disabled until a field actually changes (outer spaces don't count).
+  let editSnapshot = null;
+  const GAME_FIELDS = ["name", "bggUrl", "minPlayers", "maxPlayers", "minMinutes", "maxMinutes", "complexity"];
+  const formSnapshot = () => GAME_FIELDS.map((n) => $("gameForm")[n].value.trim()).join("\u0000");
+  function updateSaveState() {
+    if (busy) return;
+    $("gameFormSubmit").disabled = editSnapshot !== null && formSnapshot() === editSnapshot;
+  }
+  $("gameForm").addEventListener("input", updateSaveState);
   // No BoardGameGeek page yet: "Look up" (a search for the typed name) above the field.
   // A page filled in: "Open" (that page) below the field instead.
   function updateBggLink() {
@@ -1012,7 +1023,7 @@ var BGH = (() => {
   $("gameForm").bggUrl.addEventListener("input", updateBggLink);
   $("gameForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || $("gameFormSubmit").disabled) return;
     const f = $("gameForm");
     const input = { name: f.name.value, minPlayers: f.minPlayers.value, maxPlayers: f.maxPlayers.value, minMinutes: f.minMinutes.value, maxMinutes: f.maxMinutes.value, complexity: f.complexity.value, bggUrl: f.bggUrl.value };
     const v = BGH.validateGameInput(input);
