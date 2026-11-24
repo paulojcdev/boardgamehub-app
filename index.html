@@ -66,6 +66,8 @@
 
   input.field, select.field { height:48px; width:100%; border:1px solid var(--line); border-radius:14px; background:var(--card); padding:0 14px; font-size:16px; color:var(--text); min-width:0; }
   input.search { border-radius:24px; padding:0 18px; }
+  .bgg-link { align-self:flex-start; margin:-12px 0 -8px; display:inline-flex; align-items:center; min-height:44px; color:var(--accent); font-size:14px; font-weight:700; text-decoration:none; }
+  .bgg-link[hidden] { display:none; }
   label.lbl { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); min-width:0; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .grid2 > * { min-width:0; }
@@ -158,6 +160,7 @@
   <h2 id="gameDialogTitle">Add game</h2>
   <form id="gameForm" method="dialog" novalidate>
     <label class="lbl">Name <input class="field" name="name" maxlength="120" autocomplete="off"></label>
+    <a id="bggLink" class="bgg-link" target="_blank" rel="noopener noreferrer" hidden>Look up on BoardGameGeek ↗</a>
     <div class="grid2">
       <label class="lbl">Min players <input class="field" name="minPlayers" inputmode="numeric"></label>
       <label class="lbl">Max players <input class="field" name="maxPlayers" inputmode="numeric"></label>
@@ -908,8 +911,17 @@ var BGH = (() => {
     f.minutes.value = game ? game.minutes : "";
     f.complexity.value = game ? game.complexity : "";
     $("gameFormError").hidden = true;
+    updateBggLink();
     $("gameDialog").showModal();
   }
+  // Opens a BoardGameGeek search for the typed name, to look up players, time and weight.
+  function updateBggLink() {
+    const name = $("gameForm").name.value.trim();
+    const a = $("bggLink");
+    a.hidden = !name;
+    a.href = name ? "https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q=" + encodeURIComponent(name) : "";
+  }
+  $("gameForm").name.addEventListener("input", updateBggLink);
   $("gameForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (busy) return;
