@@ -916,7 +916,7 @@ var BGH = (() => {
         <div class="section-lbl"><span>Winners <span class="muted">(optional)</span></span></div>
         <div class="chips" id="winnerChips">${winnerChips || `<span class="muted small">Select who played first.</span>`}</div>
       </div>
-      <button type="button" class="primary" data-action="save-play" ${problems.length ? "disabled" : ""} title="${esc(problems.join(" "))}">Save play</button>`}
+      <button type="button" class="primary" data-action="save-play" ${problems.length ? "disabled" : ""} title="${esc(problems.join(" "))}">Save</button>`}
       <div>
         <div class="section-lbl" style="margin-top:8px"><span>Recent plays</span></div>
         <div id="recentPlays">${rows || `<div class="empty">No plays yet. Log your first game night above.</div>`}</div>
@@ -1101,6 +1101,7 @@ var BGH = (() => {
         const others = shown.length > 1 ? shown.filter((g) => g.id !== s.pickedId) : shown;
         const g = BGH.pickOne(others);
         s.pickedId = g ? g.id : null;
+        if (g) ui.plays.gameId = g.id; // the picked game becomes the game on Plays (until changed there)
         render();
         // Bring the picked game into view in the list.
         const card = g && document.querySelector(`#fitList [data-game="${CSS.escape(g.id)}"]`);
