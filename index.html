@@ -41,12 +41,12 @@
   .danger { color:var(--err); }
 
   /* Pick */
-  .stepper { display:flex; align-items:center; justify-content:space-between; padding:0 8px; }
+  .stepper { display:flex; align-items:center; justify-content:space-between; }
   .stepper button { width:56px; height:56px; border-radius:28px; border:1px solid var(--line); background:none; font-size:26px; flex:none; }
-  .dial { width:160px; height:160px; border-radius:80px; border:8px solid var(--accent); display:flex; flex-direction:column; align-items:center; justify-content:center; flex:none; }
-  .dial b { font-size:64px; line-height:1; }
+  .dial { width:132px; height:132px; border-radius:50%; border:6px solid var(--accent); display:flex; flex-direction:column; align-items:center; justify-content:center; flex:none; }
+  .dial b { font-size:50px; line-height:1; }
   .dial span { font-size:14px; color:var(--muted); }
-  @media (max-width:359px) { .dial { width:132px; height:132px; } .dial b { font-size:52px; } }
+  @media (max-width:359px) { .dial { width:120px; height:120px; } .dial b { font-size:46px; } }
   .seg { display:flex; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
   .seg button { flex:1; height:48px; border:0; background:none; min-width:0; }
   .seg button[aria-pressed="true"] { background:var(--accent); color:var(--on-accent); font-weight:700; }
@@ -632,7 +632,7 @@ var BGH = (() => {
   const ui = {
     screen: "pick",
     prevScreen: "pick",     // where closing Settings goes back to
-    pick: { players: 4, group: null, pickedId: null },
+    pick: { players: 2, group: null, pickedId: null },
     shelf: { query: "" },
     plays: { gameId: "", date: BGH.localToday(), sel: null, adding: false, newName: "", editingPlayers: false },
     loadError: null,
@@ -831,7 +831,7 @@ var BGH = (() => {
       ? `<div class="empty">Your shelf is empty. Add games on the <b>Shelf</b> tab.</div>`
       : `<div class="empty">No game fits ${s.players} ${s.players === 1 ? "player" : "players"}${s.group ? " at " + s.group : ""}. Try another number${s.group ? ", or tap " + s.group + " again to clear it" : ""}.</div>`;
     return `
-      <div class="head"><div style="width:44px"></div><div class="eyebrow center" style="padding-top:14px">Tonight</div>${settingsBtn}</div>
+      ${header("Pick", "")}
       <div class="stepper">
         <button type="button" aria-label="Fewer players" data-action="players-dec" ${s.players <= 1 ? "disabled" : ""}>−</button>
         <div class="dial"><b id="playerCount">${s.players}</b><span>${s.players === 1 ? "player" : "players"}</span></div>
@@ -843,7 +843,7 @@ var BGH = (() => {
       <div class="eyebrow" id="fitCount" style="margin-top:4px" aria-live="polite">${BGH.fitLabel(games.length)}</div>
       <div class="list" id="fitList">${games.length ? cards : empty}</div>
       <div class="action-bar">
-        <div class="picked-msg" id="pickedMsg" aria-live="polite">${picked ? `Tonight: <b>${esc(picked.name)}</b>` : ""}</div>
+        <div class="picked-msg" id="pickedMsg" aria-live="polite">${picked ? `Let's play: <b>${esc(picked.name)}</b>` : ""}</div>
         <button type="button" class="primary" data-action="pick-one" ${games.length ? "" : "disabled"}>${picked && games.length > 1 ? "Pick another" : "Pick one for me"}</button>
       </div>`;
   }
@@ -864,7 +864,7 @@ var BGH = (() => {
       ? `<div class="empty">No games on your shelf yet.<br>Add the first one below.</div>`
       : `<div class="empty">No game matches “${esc(ui.shelf.query.trim())}”.</div>`;
     return `
-      ${header("Your collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
+      ${header("Collection", `${all.length} ${all.length === 1 ? "game" : "games"}`)}
       ${all.length ? `<input class="field search" id="shelfSearch" type="search" aria-label="Search games" placeholder="Search games" value="${esc(ui.shelf.query)}" autocomplete="off">` : ""}
       <div class="list" id="shelfList">${games.length ? rows : empty}</div>
       <div class="action-bar"><button type="button" class="primary" data-action="add-game">+ Add game</button></div>`;
