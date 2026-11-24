@@ -94,6 +94,10 @@
   #screen.fixed { height:100vh; height:100dvh; overflow:hidden; padding-bottom:max(63px, 51px + env(safe-area-inset-bottom)); }
   #screen.fixed > * { flex:none; }
   #screen.fixed > .list { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; margin:-4px -6px; padding:4px 6px; }
+  .slide-from-right { animation:slide-r .18s ease-out; } .slide-from-left { animation:slide-l .18s ease-out; }
+  @keyframes slide-r { from { transform:translateX(28px); opacity:.4; } }
+  @keyframes slide-l { from { transform:translateX(-28px); opacity:.4; } }
+  @media (prefers-reduced-motion: reduce) { .slide-from-right, .slide-from-left { animation:none; } }
   .action-bar { display:flex; flex-direction:column; gap:10px; padding-bottom:12px; }
   .action-bar .primary { width:100%; }
   @media (max-height:720px) {
@@ -983,10 +987,36 @@ var BGH = (() => {
   document.querySelector("nav.bottom").addEventListener("click", (e) => {
     const b = e.target.closest("[data-nav]");
     if (!b) return;
-    ui.screen = b.dataset.nav;
+    goTo(b.dataset.nav);
+  });
+  const TABS = ["pick", "shelf", "plays"];
+  function goTo(screen, slide) {
+    ui.screen = screen;
     render();
     window.scrollTo(0, 0);
-  });
+    const el = $("screen");
+    el.classList.remove("slide-from-left", "slide-from-right");
+    if (slide) { void el.offsetWidth; el.classList.add(slide); }
+  }
+  // Swipe left / right on Pick, Shelf and Plays to move to the next / previous tab.
+  let swipe = null;
+  $("screen").addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    const ok = e.touches.length === 1 && TABS.includes(ui.screen) && !document.querySelector("dialog[open]")
+      && !e.target.closest("input, select, textarea")
+      && t.clientX > 24 && t.clientX < window.innerWidth - 24; // leave the screen edges to the browser's back/forward swipe
+    swipe = ok ? { x: t.clientX, y: t.clientY, at: Date.now() } : null;
+  }, { passive: true });
+  $("screen").addEventListener("touchend", (e) => {
+    if (!swipe) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipe.x, dy = t.clientY - swipe.y, quick = Date.now() - swipe.at < 800;
+    swipe = null;
+    if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+    const next = TABS[TABS.indexOf(ui.screen) + (dx < 0 ? 1 : -1)];
+    if (next) goTo(next, dx < 0 ? "slide-from-right" : "slide-from-left");
+  }, { passive: true });
+  $("screen").addEventListener("touchcancel", () => { swipe = null; }, { passive: true });
   function closeSettings() {
     ui.screen = ui.prevScreen && ui.prevScreen !== "settings" ? ui.prevScreen : "pick";
     render();
